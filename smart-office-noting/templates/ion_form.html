@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ION Notice Form</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+
+        .header {
+            background: #1a3c6e;
+            color: white;
+            padding: 18px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 20px; }
+        .header p  { font-size: 13px; opacity: 0.8; }
+        .btn-back {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-back:hover { background: rgba(255,255,255,0.3); }
+
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            font-size: 15px;
+            color: #1a3c6e;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e8edf5;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .optional-badge {
+            font-size: 11px;
+            background: #e8f4e8;
+            color: #2d7a2d;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+
+        label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        input, select {
+            padding: 10px 14px;
+            border: 1px solid #dde3ed;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background: #fafbfd;
+            transition: border 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #1a3c6e;
+            background: white;
+        }
+
+        /* Master selector */
+        .master-card {
+            background: #f0f4ff;
+            border: 1px solid #c0cce0;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+
+        .master-card h3 {
+            font-size: 13px;
+            color: #1a3c6e;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .master-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .master-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: white;
+            border: 2px solid #dde3ed;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .master-option:hover { border-color: #1a3c6e; }
+        .master-option input[type="radio"] { cursor: pointer; }
+        .master-option.selected { border-color: #1a3c6e; background: #e8edf5; color: #1a3c6e; }
+
+        /* Defaults */
+        .defaults-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .btn-save-defaults {
+            padding: 10px 20px;
+            background: #f0c040;
+            color: #856404;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+        .btn-save-defaults:hover { background: #e0b030; }
+
+        /* Department Manager */
+        .dept-manager {
+            background: #f8f9fc;
+            border: 1px dashed #c0cce0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 18px;
+        }
+        .dept-manager h3 { font-size: 13px; color: #555; margin-bottom: 12px; font-weight: 600; }
+        .dept-manager-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        .dept-manager-row input { flex: 1; padding: 8px 12px; font-size: 13px; }
+        .btn-add {
+            padding: 8px 18px;
+            background: #1a3c6e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-add:hover { background: #15305a; }
+        .dept-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+        .dept-tag {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: white;
+            border: 1px solid #dde3ed;
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .dept-tag .dept-name-text { cursor: pointer; }
+        .dept-tag .dept-name-text:hover { color: #1a3c6e; text-decoration: underline; }
+        .dept-tag .btn-delete { background: none; border: none; color: #cc3333; cursor: pointer; font-size: 14px; padding: 0 2px; }
+        .dept-tag .edit-input { width: 80px; padding: 2px 6px; font-size: 12px; border: 1px solid #1a3c6e; border-radius: 4px; }
+        .dept-tag .btn-save { background: #1a3c6e; color: white; border: none; border-radius: 4px; padding: 2px 6px; font-size: 11px; cursor: pointer; }
+
+        /* Checkboxes */
+        .dept-toolbar { display: flex; gap: 10px; margin-bottom: 12px; }
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 12px;
+            border: 1px solid #1a3c6e;
+            border-radius: 5px;
+            cursor: pointer;
+            background: white;
+            color: #1a3c6e;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-sm:hover { background: #1a3c6e; color: white; }
+
+        .dept-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .dept-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border: 1px solid #dde3ed;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .dept-item:hover { border-color: #1a3c6e; background: #f0f4ff; }
+        .dept-item.checked { background: #e8edf5; border-color: #1a3c6e; color: #1a3c6e; }
+        .dept-item input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; padding: 0; border: none; }
+        .selected-count { font-size: 12px; color: #666; margin-top: 10px; }
+        .selected-count span { font-weight: 700; color: #1a3c6e; }
+
+        /* Buttons */
+        .btn-preview {
+            width: 100%;
+            padding: 14px;
+            background: #2d7a2d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-preview:hover { background: #236023; }
+
+        .btn-download {
+            width: 100%;
+            padding: 14px;
+            background: #1a3c6e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-download:hover { background: #15305a; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>📄 Generate ION Notice</h1>
+        <p>Fill in the details below to generate your notice</p>
+    </div>
+    <a href="/" class="btn-back">← Dashboard</a>
+</div>
+
+<div class="container">
+    <input type="hidden" id="agra_form_id" value="{{ agra_form_id }}">
+    <form action="/preview" method="POST" id="noticeForm" novalidate>
+
+        <div class="master-card">
+            <h3>📋 Select Master Template</h3>
+            <div class="master-options">
+                {% for master in masters %}
+                    {% if master.form_type == 'fillable' %}
+                    <label class="master-option {% if master.id == selected_master_id %}selected{% endif %}"
+                           id="master-label-{{ loop.index }}">
+                        <input type="radio" name="master_id" value="{{ master.id }}"
+                               data-agra-id="{{ master.agra_form_id }}"
+                               {% if master.id == selected_master_id %}checked{% endif %}
+                               onchange="updateMasterSelection(this)">
+                        📄 {{ master.name }}
+                        {% if master.is_default %}<span style="color:#2d7a2d; font-size:10px;">✓ Default</span>{% endif %}
+                    </label>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📚 Degree & Training Period</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Degree Type *</label>
+                    <select name="degree" required>
+                        {% for degree in degree_options %}
+                        <option value="{{ degree }}"
+                            {% if saved and saved.degree == degree %}selected{% endif %}>
+                            {{ degree }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group"></div>
+
+                <div class="form-group">
+                    <label>Training Start Month *</label>
+                    <select name="start_month" required>
+                        {% for month in months %}
+                        <option value="{{ month }}"
+                            {% if saved and saved.start_month == month %}selected{% endif %}>
+                            {{ month }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Training Start Year *</label>
+                    <input type="number" name="start_year"
+                           placeholder="e.g. 2025" min="2020" required
+                           value="{{ saved.start_year if saved else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label>Training End Month *</label>
+                    <select name="end_month" required>
+                        {% for month in months %}
+                        <option value="{{ month }}"
+                            {% if saved and saved.end_month == month %}selected{% endif %}>
+                            {{ month }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Training End Year *</label>
+                    <input type="number" name="end_year"
+                           placeholder="e.g. 2025" min="2020" required
+                           value="{{ saved.end_year if saved else '' }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📅 Dates & ION Number</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Last Submission Date *</label>
+                    <input type="text" name="last_date"
+                           placeholder="e.g. 30th October 2024" required
+                           value="{{ saved.last_date if saved else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Notice Date *</label>
+                    <input type="text" name="notice_date"
+                           placeholder="e.g. 15.09.2024" required
+                           value="{{ saved.notice_date if saved else '' }}">
+                </div>
+                <div class="form-group full-width">
+                    <label>ION Number *</label>
+                    <input type="text" name="ion_number"
+                           placeholder="e.g. मा.सं.वि.वि./प्रशिक्षु/06 मासिक/सितंबर 2024" required
+                           value="{{ saved.ion_number if saved else '' }}">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>✍️ Signatory Details</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Signatory Name *</label>
+                    <input type="text" name="signatory_name" id="signatory_name"
+                           placeholder="e.g. Anupam Anand" required
+                           value="{{ saved.signatory_name if saved else (defaults.signatory_name if defaults else '') }}">
+                </div>
+                <div class="form-group">
+                    <label>Designation *</label>
+                    <input type="text" name="signatory_designation" id="signatory_designation"
+                           placeholder="e.g. प्रमुख (मा.सं.वि.वि)" required
+                           value="{{ saved.signatory_designation if saved else (defaults.signatory_designation if defaults else '') }}">
+                </div>
+            </div>
+            <button type="button" class="btn-save-defaults" onclick="saveDefaults()">
+                💾 Save as Default
+            </button>
+        </div>
+
+        <div class="card">
+            <h2>🏢 Select Departments</h2>
+            <div class="dept-toolbar">
+                <button type="button" class="btn-sm" onclick="selectAll()">✅ Select All</button>
+                <button type="button" class="btn-sm" onclick="deselectAll()">❌ Deselect All</button>
+            </div>
+            <div class="dept-grid">
+                {% for dept in departments %}
+                <label class="dept-item">
+                    <input type="checkbox" name="departments" value="{{ dept }}"
+                           onchange="updateCount(); toggleStyle(this)"
+                           {% if not saved or dept in saved.departments %}checked{% endif %}>
+                    {{ dept }}
+                </label>
+                {% endfor %}
+            </div>
+            <p class="selected-count">Selected: <span id="count">0</span> departments</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+            <button type="submit" formaction="/preview" class="btn-preview">
+                👁 Preview Notice
+            </button>
+            <button type="submit" formaction="/generate" class="btn-download">
+                📄 Download Directly
+            </button>
+        </div>
+        <br>
+
+    </form> <div class="card">
+        <h2>🏢 Manage Departments <span class="optional-badge">Optional</span></h2>
+        <div class="dept-manager">
+            <h3>➕ Add New Department</h3>
+            <form action="/departments/add" method="POST">
+                <div class="dept-manager-row">
+                    <input type="text" name="new_dept" placeholder="Enter department name e.g. XYZ">
+                    <button type="submit" class="btn-add">Add</button>
+                </div>
+            </form>
+            <h3 style="margin-top:12px;">✏️ Edit or Remove</h3>
+            <div class="dept-list">
+                {% for dept in departments %}
+                <div class="dept-tag" id="tag-{{ loop.index }}">
+                    <span class="dept-name-text"
+                          onclick="enableEdit('{{ loop.index }}', '{{ dept }}')">{{ dept }}</span>
+                    <form action="/departments/edit" method="POST"
+                          id="edit-form-{{ loop.index }}" style="display:none;">
+                        <input type="hidden" name="old_name" value="{{ dept }}">
+                        <input type="text" name="new_name" value="{{ dept }}"
+                               class="edit-input" id="edit-input-{{ loop.index }}">
+                        <button type="submit" class="btn-save">✓</button>
+                    </form>
+                    <form action="/departments/delete/{{ dept }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-delete"
+                                onclick="return confirm('Delete {{ dept }}?')">×</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <form action="/save-defaults" method="POST" id="defaultsForm" style="display:none;">
+        <input type="hidden" name="signatory_name" id="hSignName">
+        <input type="hidden" name="signatory_designation" id="hSignDesig">
+        <input type="hidden" name="master_id" id="hMasterId">
+        <input type="hidden" name="degree" id="hDegree">
+        <input type="hidden" name="start_month" id="hStartMonth">
+        <input type="hidden" name="start_year" id="hStartYear">
+        <input type="hidden" name="end_month" id="hEndMonth">
+        <input type="hidden" name="end_year" id="hEndYear">
+        <input type="hidden" name="last_date" id="hLastDate">
+        <input type="hidden" name="ion_number" id="hIonNumber">
+        <input type="hidden" name="notice_date" id="hNoticeDate">
+    </form>
+</div>
+
+<script>
+    function updateCount() {
+        const checked = document.querySelectorAll('input[name="departments"]:checked').length;
+        document.getElementById('count').textContent = checked;
+    }
+
+    function toggleStyle(checkbox) {
+        const label = checkbox.closest('.dept-item');
+        checkbox.checked ? label.classList.add('checked') : label.classList.remove('checked');
+    }
+
+    function selectAll() {
+        document.querySelectorAll('input[name="departments"]').forEach(cb => {
+            cb.checked = true;
+            cb.closest('.dept-item').classList.add('checked');
+        });
+        updateCount();
+    }
+
+    function deselectAll() {
+        document.querySelectorAll('input[name="departments"]').forEach(cb => {
+            cb.checked = false;
+            cb.closest('.dept-item').classList.remove('checked');
+        });
+        updateCount();
+    }
+
+    function enableEdit(index) {
+        document.getElementById('tag-' + index).querySelector('.dept-name-text').style.display = 'none';
+        document.getElementById('edit-form-' + index).style.display = 'inline-flex';
+        document.getElementById('edit-input-' + index).focus();
+    }
+
+    function updateMasterSelection(radio) {
+        document.querySelectorAll('.master-option').forEach(el => el.classList.remove('selected'));
+        radio.closest('.master-option').classList.add('selected');
+        
+        // Sync dynamic Agra-sandhani form ID
+        const agraId = radio.getAttribute('data-agra-id');
+        document.getElementById('agra_form_id').value = agraId;
+    }
+
+    function saveDefaults() {
+        document.getElementById('hSignName').value   = document.getElementById('signatory_name').value;
+        document.getElementById('hSignDesig').value  = document.getElementById('signatory_designation').value;
+        document.getElementById('hMasterId').value   = document.querySelector('[name="master_id"]:checked').value;
+        document.getElementById('hDegree').value     = document.querySelector('[name="degree"]').value;
+        document.getElementById('hStartMonth').value = document.querySelector('[name="start_month"]').value;
+        document.getElementById('hStartYear').value  = document.querySelector('[name="start_year"]').value;
+        document.getElementById('hEndMonth').value   = document.querySelector('[name="end_month"]').value;
+        document.getElementById('hEndYear').value    = document.querySelector('[name="end_year"]').value;
+        document.getElementById('hLastDate').value   = document.querySelector('[name="last_date"]').value;
+        document.getElementById('hIonNumber').value  = document.querySelector('[name="ion_number"]').value;
+        document.getElementById('hNoticeDate').value = document.querySelector('[name="notice_date"]').value;
+        document.getElementById('defaultsForm').submit();
+    }
+
+    // Init
+    document.querySelectorAll('input[name="departments"]').forEach(cb => {
+        if (cb.checked) cb.closest('.dept-item').classList.add('checked');
+    });
+    updateCount();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,32 @@
+# --- AeroForm Suite Master GitIgnore ---
+
+# EXCLUDE Heavy Dependencies
+**/node_modules/
+**/venv/
+**/__pycache__/
+**/*.pyc
+**/offline_packages/
+
+# EXCLUDE Build Artifacts & Large Binaries
+**/dist/
+**/generated_notices/*.docx
+
+# EXCLUDE Runtime Logs & Local Data
+**/logs/
+**/history.json
+**/data.json (if it contains real employee data)
+
+# INCLUDE Code & Config (Explicitly allowing .env as requested)
+!**/.env
+!**/.env.local
+!**/config.json
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Keep Deployment Scripts
+!HOST_ON_LAN.bat
+!PREPARE_ALL_OFFLINE.bat
+!AIR_GAP_GUIDE.md
+!TROUBLESHOOTING_AND_CONFIG.md

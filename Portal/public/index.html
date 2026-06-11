@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SHAKTI | Divine Unified Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Alegreya:ital,wght@0,400;0,700;1,400&family=Cinzel+Decorative:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --gold: #d4af37;
+            --gold-bright: #f9e27d;
+            --myth-dark: #010409;
+            --text-gold: #e2c985;
+            --glow: rgba(212, 175, 55, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; cursor: none !important; }
+
+        body {
+            background-color: var(--myth-dark);
+            background-image: 
+                radial-gradient(circle at center, #0a192f 0%, #010409 100%),
+                url('https://www.transparenttextures.com/patterns/stardust.png');
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-gold);
+            font-family: 'Alegreya', serif;
+            padding: 20px;
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        /* Custom Divine Cursor */
+        #cursor {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            border: 1px solid var(--gold);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            transition: transform 0.1s ease;
+            mix-blend-mode: difference;
+        }
+
+        #cursor-glow {
+            position: fixed;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Background Nebula */
+        .nebula {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(30, 144, 255, 0.05) 0%, transparent 50%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Particles */
+        #particles {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .particle {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: float var(--d) infinite linear;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(100vh) translateX(0) scale(1); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-10vh) translateX(100px) scale(0); opacity: 0; }
+        }
+
+        .header {
+            position: relative;
+            text-align: center;
+            margin-bottom: 60px;
+            z-index: 10;
+            opacity: 0;
+            transform: translateY(-50px);
+            animation: revealUp 1.5s forwards 0.5s;
+        }
+
+        @keyframes revealUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header h1 {
+            font-family: 'Cinzel Decorative', cursive;
+            font-size: clamp(3rem, 10vw, 6rem);
+            font-weight: 900;
+            letter-spacing: 0.3em;
+            color: var(--gold);
+            background: linear-gradient(to bottom, #fff, var(--gold-bright), var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 15px rgba(212, 175, 55, 0.5));
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .divider-line {
+            width: 0;
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--gold), transparent);
+            animation: growLine 2s forwards 1s;
+        }
+
+        @keyframes growLine { to { width: 200px; } }
+
+        .container {
+            display: flex;
+            gap: 60px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 1300px;
+            z-index: 10;
+        }
+
+        .card-wrapper {
+            perspective: 1000px;
+            opacity: 0;
+            transform: scale(0.9);
+            animation: revealScale 1.2s forwards;
+        }
+
+        .card-wrapper:nth-child(1) { animation-delay: 1.2s; }
+        .card-wrapper:nth-child(2) { animation-delay: 1.5s; }
+
+        @keyframes revealScale { to { opacity: 1; transform: scale(1); } }
+
+        .card {
+            background: rgba(10, 25, 47, 0.4);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            width: 480px;
+            padding: 80px 50px;
+            text-align: center;
+            transition: transform 0.1s ease, box-shadow 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            transform-style: preserve-3d;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.1), transparent);
+            pointer-events: none;
+        }
+
+        .card-content {
+            transform: translateZ(50px);
+        }
+
+        .icon-circle {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 40px;
+            border: 2px solid var(--gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 4rem;
+            position: relative;
+            background: rgba(0,0,0,0.4);
+            transition: all 0.5s ease;
+        }
+
+        .icon-circle::after {
+            content: "";
+            position: absolute;
+            width: 140%;
+            height: 140%;
+            border: 1px dashed var(--gold);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: rotate 30s linear infinite;
+        }
+
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .card:hover .icon-circle {
+            background: var(--gold);
+            color: var(--myth-dark);
+            box-shadow: 0 0 50px var(--gold);
+            transform: scale(1.1) translateZ(30px);
+        }
+
+        .card h2 {
+            font-family: 'Cinzel', serif;
+            font-size: 2.5rem;
+            color: var(--gold-bright);
+            margin-bottom: 25px;
+            letter-spacing: 0.2em;
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+        }
+
+        .card p {
+            font-size: 1.2rem;
+            color: #d1d9e6;
+            margin-bottom: 50px;
+            line-height: 1.8;
+            font-style: italic;
+        }
+
+        .cta-btn {
+            font-family: 'Cinzel', serif;
+            padding: 18px 45px;
+            border: 1px solid var(--gold);
+            color: var(--gold);
+            text-transform: uppercase;
+            letter-spacing: 0.4em;
+            font-weight: 700;
+            background: transparent;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+            z-index: 1;
+            align-self: center;
+        }
+
+        .cta-btn::before {
+            content: "";
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 0; height: 0;
+            background: var(--gold);
+            transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            z-index: -1;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+        }
+
+        .card:hover .cta-btn {
+            color: var(--myth-dark);
+            box-shadow: 0 0 30px var(--gold);
+        }
+
+        .card:hover .cta-btn::before {
+            width: 400%;
+            height: 800%;
+        }
+
+        .footer {
+            margin-top: 100px;
+            text-align: center;
+            z-index: 10;
+            opacity: 0;
+            animation: fadeIn 2s forwards 2.5s;
+        }
+
+        @keyframes fadeIn { to { opacity: 0.6; } }
+
+        .footer p {
+            font-family: 'Cinzel', serif;
+            font-size: 1rem;
+            letter-spacing: 0.3em;
+            color: var(--gold);
+        }
+
+        @media (max-width: 1000px) {
+            body { overflow-y: auto; padding: 60px 20px; }
+            .container { gap: 40px; }
+            .card { width: 100%; max-width: 500px; }
+            * { cursor: auto !important; }
+            #cursor, #cursor-glow { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="cursor"></div>
+    <div id="cursor-glow"></div>
+    <div class="nebula" id="nebula"></div>
+    <div id="particles"></div>
+
+    <div class="header">
+        <h1>SHAKTI</h1>
+        <div class="subtitle">Divine Unified Workspace</div>
+        <div class="divider">
+            <div class="divider-line"></div>
+            <div class="divider-emblem">✦</div>
+            <div class="divider-line"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Agra Sandhani Card -->
+        <div class="card-wrapper">
+            <a href="#" id="agra-link" class="card">
+                <div class="card-content">
+                    <div class="icon-circle">🧿</div>
+                    <h2>अग्र-Sandhani</h2>
+                    <p>"The Omniscient Archive"<br>Mapping the souls and stations of the digital realm.</p>
+                    <div class="cta-btn">Commence Ritual</div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Smart Office Noting Card -->
+        <div class="card-wrapper">
+            <a href="#" id="noting-link" class="card">
+                <div class="card-content">
+                    <div class="icon-circle">🖋️</div>
+                    <h2>Smart Noting</h2>
+                    <p>"The Eternal Scribe"<br>Where intent is forged into the decrees of destiny.</p>
+                    <div class="cta-btn">Invoke Decree</div>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>MMXXVI &bull; AeroForm Automatrix</p>
+        <p style="font-size: 0.7rem; margin-top: 15px;">Sanctified by Integrated Intelligence</p>
+    </div>
+
+    <script>
+        const cursor = document.getElementById('cursor');
+        const cursorGlow = document.getElementById('cursor-glow');
+        const nebula = document.getElementById('nebula');
+        const cards = document.querySelectorAll('.card');
+
+        // Mouse Tracker
+        document.addEventListener('mousemove', (e) => {
+            const { clientX: x, clientY: y } = e;
+            
+            // Cursor Update
+            cursor.style.left = x + 'px';
+            cursor.style.top = y + 'px';
+            cursorGlow.style.left = x + 'px';
+            cursorGlow.style.top = y + 'px';
+            
+            // Nebula Update
+            const xPct = (x / window.innerWidth) * 100;
+            const yPct = (y / window.innerHeight) * 100;
+            nebula.style.setProperty('--mx', xPct + '%');
+            nebula.style.setProperty('--my', yPct + '%');
+
+            // Card Tilt Parallax
+            cards.forEach(card => {
+                const rect = card.getBoundingClientRect();
+                const cardX = x - (rect.left + rect.width / 2);
+                const cardY = y - (rect.top + rect.height / 2);
+                
+                // Only tilt if near the card
+                const dist = Math.sqrt(cardX**2 + cardY**2);
+                if (dist < 600) {
+                    const rotateX = -cardY / 20;
+                    const rotateY = cardX / 20;
+                    card.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                } else {
+                    card.style.transform = `rotateX(0deg) rotateY(0deg)`;
+                }
+            });
+        });
+
+        // Click Pulse Effect
+        document.addEventListener('mousedown', () => {
+            cursor.style.transform = 'scale(0.8)';
+            cursorGlow.style.background = 'radial-gradient(circle, rgba(212, 175, 55, 0.3) 0%, transparent 70%)';
+        });
+        document.addEventListener('mouseup', () => {
+            cursor.style.transform = 'scale(1)';
+            cursorGlow.style.background = 'radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%)';
+        });
+
+        // Particle Generator
+        const particlesContainer = document.getElementById('particles');
+        const particleCount = 80;
+
+        for (let i = 0; i < particleCount; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            const size = Math.random() * 4 + 1;
+            p.style.width = size + 'px';
+            p.style.height = size + 'px';
+            p.style.left = Math.random() * 100 + 'vw';
+            p.style.setProperty('--d', (Math.random() * 15 + 10) + 's');
+            p.style.animationDelay = (Math.random() * 10) + 's';
+            if (Math.random() > 0.8) {
+                p.style.boxShadow = '0 0 10px white';
+                p.style.background = 'var(--gold-bright)';
+            }
+            particlesContainer.appendChild(p);
+        }
+
+        async function init() {
+            try {
+                const response = await fetch('/api/config');
+                const config = await response.json();
+                
+                const agraUrl = `http://${config.ip}:${config.agraPort}`;
+                const notingUrl = `http://${config.ip}:${config.notingPort}`;
+                
+                document.getElementById('agra-link').href = agraUrl;
+                document.getElementById('noting-link').href = notingUrl;
+            } catch (e) {
+                console.error('Portal connection failed:', e);
+                document.getElementById('agra-link').href = 'http://localhost:5000';
+                document.getElementById('noting-link').href = 'http://localhost:5001';
+            }
+        }
+        init();
+    </script>
+</body>
+</html>

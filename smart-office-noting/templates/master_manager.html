@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Document Manager</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+
+        .header {
+            background: #1a3c6e;
+            color: white;
+            padding: 18px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 20px; }
+        .header p  { font-size: 13px; opacity: 0.8; }
+
+        .header-actions { display: flex; gap: 10px; }
+
+        .btn-header {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .btn-header:hover { background: rgba(255,255,255,0.3); }
+        .btn-lock {
+            background: rgba(204,51,51,0.3);
+            border-color: rgba(255,100,100,0.4);
+        }
+
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            font-size: 15px;
+            color: #1a3c6e;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e8edf5;
+        }
+
+        /* Master Cards */
+        .master-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border: 1px solid #dde3ed;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: #fafbfd;
+        }
+
+        .master-item.is-default {
+            border-color: #2d7a2d;
+            background: #f0fff0;
+        }
+
+        .master-info { display: flex; flex-direction: column; gap: 4px; }
+        .master-name { font-size: 14px; font-weight: 700; color: #1a3c6e; display: flex; align-items: center; }
+        .master-desc { font-size: 12px; color: #666; }
+        .master-meta { font-size: 11px; color: #999; }
+
+        .default-badge {
+            font-size: 11px;
+            background: #e8f4e8;
+            color: #2d7a2d;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .dynamic-badge {
+            font-size: 11px;
+            background: #e0f2fe;
+            color: #0284c7;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .static-badge {
+            font-size: 11px;
+            background: #f3f4f6;
+            color: #4b5563;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .master-actions { display: flex; gap: 8px; align-items: center; }
+
+        .btn-action {
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-download-m { background: #f0f4ff; color: #1a3c6e; border: 1px solid #1a3c6e; }
+        .btn-download-m:hover { background: #1a3c6e; color: white; }
+        .btn-set-default { background: #e8f4e8; color: #2d7a2d; border: 1px solid #2d7a2d; }
+        .btn-set-default:hover { background: #2d7a2d; color: white; }
+        .btn-delete-m { background: #fff0f0; color: #cc3333; border: 1px solid #cc3333; }
+        .btn-delete-m:hover { background: #cc3333; color: white; }
+
+        /* Upload section */
+        .upload-section {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fc;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .upload-section.show { display: block; }
+
+        .upload-section input[type="file"] {
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .btn-upload {
+            padding: 6px 14px;
+            background: #1a3c6e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* Forms */
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; }
+        label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; }
+        input, select, textarea {
+            padding: 10px 14px;
+            border: 1px solid #dde3ed;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background: #fafbfd;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #1a3c6e;
+        }
+
+        .btn-create {
+            padding: 12px 24px;
+            background: #2d7a2d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-create:hover { background: #236023; }
+        
+        .btn-dynamic {
+            padding: 12px 24px;
+            background: #0284c7;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-dynamic:hover { background: #0369a1; }
+
+        .info-box {
+            background: #f0f4ff;
+            border: 1px solid #c0cce0;
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 13px;
+            color: #1a3c6e;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            background: #e8f4e8;
+            color: #2d7a2d;
+            border: 1px solid #2d7a2d;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>🗂 Master Document Manager</h1>
+        <p>Manage ION notice master templates</p>
+    </div>
+    <div class="header-actions">
+        <a href="/" class="btn-header">← Dashboard</a>
+        <a href="/masters/lock" class="btn-header btn-lock">🔒 Lock</a>
+    </div>
+</div>
+
+<div class="container">
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-messages">
+        {% for message in messages %}
+          <div class="flash-message">✅ {{ message }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <h2>📋 Existing Master Documents</h2>
+
+        <div class="info-box">
+            💡 <strong>How to edit a master:</strong> Download it → Edit in Microsoft Word →
+            Upload the updated file back. The default master cannot be deleted.
+        </div>
+
+        {% for master in masters %}
+        <div class="master-item {% if master.is_default %}is-default{% endif %}">
+            <div class="master-info">
+                <div class="master-name">
+                    {{ master.name }}
+                    
+                    {% if master.form_type == 'dynamic' %}
+                        <span class="dynamic-badge">✨ Dynamic</span>
+                    {% else %}
+                        <span class="static-badge">📄 Static</span>
+                    {% endif %}
+                    
+                    {% if master.is_default %}
+                        <span class="default-badge">✓ Default</span>
+                    {% endif %}
+                </div>
+                <div class="master-desc">{{ master.description }}</div>
+                <div class="master-meta">Created: {{ master.created_at }}</div>
+                
+                <!-- 🚀 AGRA-SANDHANI MAPPING -->
+                <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="font-size: 10px; color: #1a3c6e; margin: 0; min-width: 70px;">DATA SOURCE:</label>
+                        <select class="agra-form-selector" data-master-id="{{ master.id }}" style="font-size: 11px; padding: 4px 8px; width: 220px; border-radius: 4px;">
+                            <option value="">-- No Mapping (Global Default) --</option>
+                            {% if master.agra_form_id %}
+                            <option value="{{ master.agra_form_id }}" selected>Loading name...</option>
+                            {% endif %}
+                        </select>
+                        <button type="button" class="btn-action" style="font-size: 10px; background: #e0edf5; color: #1a3c6e; padding: 2px 8px;" onclick="toggleFieldMap('{{ master.id }}')">⚙️ Edit Field Map</button>
+                        <span class="save-indicator" id="save-{{ master.id }}" style="font-size: 10px; color: #2d7a2d; display: none;">Saved!</span>
+                    </div>
+                    
+                    <div id="field-map-container-{{ master.id }}" style="display: none; padding: 10px; background: #fff; border: 1px solid #c0cce0; border-radius: 6px; margin-top: 5px;">
+                        <label style="font-size: 10px; font-weight: 700;">Manual Field Mapping (JSON)</label>
+                        <p style="font-size: 9px; color: #666; margin-bottom: 5px;">Format: <code>{"Noting Column Name": "Agra-sandhani Field Label"}</code></p>
+                        <textarea id="field-map-{{ master.id }}" style="width: 100%; height: 80px; font-family: monospace; font-size: 11px; padding: 8px;" placeholder='e.g. {"Name & Design.": "Official Name"}'>{{ (master.field_map or {}) | tojson }}</textarea>
+                        <button type="button" class="btn-upload" style="margin-top: 8px; font-size: 10px;" onclick="saveFieldMap('{{ master.id }}')">Save Mapping</button>
+                    </div>
+                </div>
+
+                <div class="upload-section" id="upload-{{ master.id }}">
+                    <form action="/masters/upload/{{ master.id }}" method="POST"
+                          enctype="multipart/form-data">
+                        <input type="file" name="file" accept=".docx" required>
+                        <button type="submit" class="btn-upload">📤 Upload Updated Master</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="master-actions">
+                <a href="/masters/download/{{ master.id }}" class="btn-action btn-download-m">
+                    📥 Download
+                </a>
+
+                <button type="button" class="btn-action btn-download-m"
+                        onclick="toggleUpload('{{ master.id }}')">
+                    📤 Upload Edit
+                </button>
+
+                <form action="/masters/toggle-default/{{ master.id }}" method="POST">
+                    {% if master.is_default %}
+                    <button type="submit" class="btn-action btn-delete-m">❌ Remove Default</button>
+                    {% else %}
+                    <button type="submit" class="btn-action btn-set-default">⭐ Set Default</button>
+                    {% endif %}
+                </form>
+
+                {% if not master.is_default %}
+                <form id="delete-form-{{ master.id }}" action="/masters/delete/{{ master.id }}" method="POST">
+                    <input type="hidden" name="confirm_password" id="delete-pwd-{{ master.id }}" value="">
+                    
+                    <button type="button" class="btn-action btn-delete-m"
+                            onclick="promptDelete('{{ master.id }}', '{{ master.name }}')">
+                        🗑 Delete
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="card" style="border: 2px solid #0284c7;">
+        <h2 style="color: #0284c7; border-bottom-color: #e0f2fe;">✨ Upload Dynamic Master (Code-Free)</h2>
+        <p style="font-size:13px; color:#666; margin-bottom:18px;">
+            Upload a brand new Word document (<code>.docx</code>) containing custom variables wrapped in curly braces (e.g., <b>{{employee_name}}</b> or <b>{{joining_date}}</b>). The system will automatically extract the variables and build a custom web form for it.
+        </p>
+
+        <form action="/masters/upload-new" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>Template Name *</label>
+                <input type="text" name="name" placeholder="e.g. Employee Joining Letter" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" placeholder="Brief description of this form's purpose...">
+            </div>
+            <div class="form-group">
+                <label>Upload Document (.docx) *</label>
+                <input type="file" name="file" accept=".docx" required style="padding: 6px 10px;">
+            </div>
+            <button type="submit" class="btn-dynamic">✨ Extract Variables & Create Form</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>➕ Create New Static Master (From Existing)</h2>
+        <p style="font-size:13px; color:#666; margin-bottom:18px;">
+            This will copy an existing master as a starting point.
+            Download it, edit in Word, then upload back.
+        </p>
+
+        <form action="/masters/create" method="POST">
+            <div class="form-group">
+                <label>Base this on *</label>
+                <select name="source_id" required>
+                    {% for master in masters %}
+                    <option value="{{ master.id }}">{{ master.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>New Master Name *</label>
+                <input type="text" name="name"
+                       placeholder="e.g. Hindi Only ION Notice" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description"
+                       placeholder="e.g. ION notice template in Hindi only">
+            </div>
+            <button type="submit" class="btn-create">➕ Create New Master</button>
+        </form>
+    </div>
+
+</div>
+
+<script>
+    function toggleUpload(masterId) {
+        const el = document.getElementById('upload-' + masterId);
+        el.classList.toggle('show');
+    }
+
+    // NEW: Double-layer security prompt for deletion
+    function promptDelete(masterId, masterName) {
+        // ... rest of code
+    }
+
+    // 🚀 INTEGRATION: Agra-sandhani Discovery
+    document.addEventListener('DOMContentLoaded', async () => {
+        const selectors = document.querySelectorAll('.agra-form-selector');
+        try {
+            const res = await fetch('/api/agra_forms');
+            const data = await res.json();
+            
+            if (data.error) throw new Error(data.error);
+            const forms = data.forms || [];
+            
+            selectors.forEach(sel => {
+                const currentId = sel.value;
+                sel.innerHTML = '<option value="">-- No Mapping (Global Default) --</option>';
+                
+                if (forms.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.disabled = true;
+                    opt.textContent = "No forms found in Agra-sandhani";
+                    sel.appendChild(opt);
+                }
+
+                forms.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f.id;
+                    opt.textContent = `${f.name} (ID: ${f.id})`;
+                    if (f.id.toString() === currentId) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+
+                sel.onchange = async () => {
+                    const masterId = sel.getAttribute('data-master-id');
+                    const agraId = sel.value;
+                    
+                    try {
+                        const response = await fetch('/masters/update_mapping', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ master_id: masterId, agra_form_id: agraId })
+                        });
+                        
+                        if (response.ok) {
+                            const indicator = document.getElementById('save-' + masterId);
+                            indicator.style.display = 'inline';
+                            setTimeout(() => indicator.style.display = 'none', 2000);
+                        }
+                    } catch (e) {
+                        alert('Error updating mapping: ' + e.message);
+                    }
+                };
+            });
+        } catch (e) {
+            console.error('Failed to load Agra-sandhani forms:', e);
+            selectors.forEach(sel => {
+                sel.innerHTML = '<option value="">⚠️ Connection Error (Check Server)</option>';
+                sel.style.borderColor = '#cc3333';
+                sel.style.color = '#cc3333';
+            });
+        }
+    });
+
+    function toggleFieldMap(masterId) {
+        const el = document.getElementById('field-map-container-' + masterId);
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function saveFieldMap(masterId) {
+        const textarea = document.getElementById('field-map-' + masterId);
+        let mapping;
+        try {
+            mapping = JSON.parse(textarea.value);
+        } catch (e) {
+            alert('Invalid JSON format. Please check your mapping.');
+            return;
+        }
+
+        try {
+            const response = await fetch('/masters/update_mapping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ master_id: masterId, field_map: mapping })
+            });
+            
+            if (response.ok) {
+                const indicator = document.getElementById('save-' + masterId);
+                indicator.style.display = 'inline';
+                setTimeout(() => indicator.style.display = 'none', 2000);
+                toggleFieldMap(masterId);
+            }
+        } catch (e) {
+            alert('Error updating mapping: ' + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>

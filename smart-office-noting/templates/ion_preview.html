@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ION Preview</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+
+        .header {
+            background: #1a3c6e;
+            color: white;
+            padding: 18px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 20px; }
+        .header p  { font-size: 13px; opacity: 0.8; }
+        .btn-back {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .btn-back:hover { background: rgba(255,255,255,0.3); }
+
+        .container { max-width: 850px; margin: 30px auto; padding: 0 20px; }
+
+        .preview-badge {
+            background: #fff8e1;
+            border: 1px solid #f0c040;
+            border-radius: 8px;
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        /* Notice Paper */
+        .notice-paper {
+            background: white;
+            border-radius: 10px;
+            padding: 50px 60px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+            margin-bottom: 25px;
+        }
+
+        .notice-header { text-align: center; margin-bottom: 16px; }
+        .notice-header p { font-weight: bold; font-size: 14px; line-height: 2; }
+
+        .notice-subject {
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            text-decoration: underline;
+            margin-bottom: 16px;
+        }
+
+        .notice-body {
+            font-size: 13px;
+            line-height: 1.9;
+            text-align: justify;
+            margin-bottom: 14px;
+        }
+
+        .notice-signatory {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 50px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+
+        .notice-signatory .left { line-height: 2.2; }
+        .notice-signatory .right { text-align: right; line-height: 2.2; }
+        .notice-signatory .right .name { font-weight: bold; }
+
+        .notice-to { font-size: 13px; margin-bottom: 12px; line-height: 1.8; }
+
+        .dept-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .dept-table td {
+            border: 1px solid #333;
+            padding: 6px 10px;
+            text-align: center;
+        }
+
+        .notice-note {
+            font-size: 12px;
+            text-decoration: underline;
+            margin-top: 10px;
+        }
+
+        /* Action Bar */
+        .action-bar {
+            background: white;
+            border-radius: 10px;
+            padding: 20px 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-download {
+            flex: 1;
+            padding: 14px;
+            background: #1a3c6e;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-download:hover { background: #15305a; }
+
+        .btn-edit {
+            flex: 1;
+            padding: 14px;
+            background: white;
+            color: #1a3c6e;
+            border: 2px solid #1a3c6e;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn-edit:hover { background: #f0f4ff; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>👁 Notice Preview</h1>
+        <p>Review carefully before downloading</p>
+    </div>
+    <a href="/" class="btn-back">← Dashboard</a>
+</div>
+
+<div class="container">
+
+    <div class="preview-badge">
+        ⚠️ This is a preview. Please review carefully before downloading the final DOCX.
+    </div>
+
+    <!-- Notice Paper -->
+    <div class="notice-paper">
+        <div class="notice-header">
+            <p>अन्तर कार्यालय नोट / ION</p>
+            <p>चरम प्राक्षेपिकी अनुसंधान प्रयोगशाला / TBRL</p>
+            <p>{मानव संसाधन विकास विभाग / HRD}</p>
+        </div>
+
+        <div class="notice-subject">
+            विषय : {{ data.degree }} छात्रों की औद्योगिक प्रशिक्षण
+        </div>
+
+        <div class="notice-body">
+            {{ data.start_month }} {{ data.start_year }} से {{ data.end_month }}
+            {{ data.end_year }} तक प्रशिक्षण प्राप्त करने के लिये विभिन्न विश्वविद्यालय से
+            {{ data.degree }} के छात्र टी.बी.आर.एल में प्रशिक्षण प्राप्त करने के लिये आवेदन करेंगे।
+            जो वैज्ञानिक उन्हे प्रशिक्षण देना चाहते हैं, वे अपनी आवश्यकता मानव संसाधन विकास विभाग को
+            {{ data.last_date }} तक भेजे । अपनी आवश्यकता को वेAD/TD/GD/JD/PD या वरिष्ठतम
+            वैज्ञानिक से अग्रेसित अवश्य करायें ।
+        </div>
+
+        <div class="notice-body">
+            {{ data.degree }} Students from different University interested in getting
+            training at TBRL during {{ data.start_month }}-{{ data.end_month }}
+            {{ data.end_year }} will submit their applications.
+        </div>
+
+        <div class="notice-body">
+            Scientists who want to impart training to these students are requested to give
+            their requirement to HRD Division by {{ data.last_date }}, forwarded by
+            AD/TD/GD/JD/PD or senior most scientist of the group.
+        </div>
+
+        <div class="notice-signatory">
+            <div class="left">
+                <div>ION नं0: {{ data.ion_number }}</div>
+                <div>दिनांक: &nbsp;&nbsp; {{ data.notice_date }}</div>
+            </div>
+            <div class="right">
+                <div class="name">({{ data.signatory_name }})</div>
+                <div>{{ data.signatory_designation }}</div>
+            </div>
+        </div>
+
+        <div class="notice-to">
+            <strong>To:</strong><br>
+            &nbsp;&nbsp;&nbsp;&nbsp; All TD's / GD's / PD's
+        </div>
+
+        {% if data.dept_rows %}
+        <table class="dept-table">
+            {% for row in data.dept_rows %}
+            <tr>
+                {% for cell in row %}
+                <td>{{ cell }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+    </div>
+
+    <!-- Action Bar -->
+    <div class="action-bar">
+        <form action="/edit" method="POST" style="flex:1;">
+            <input type="hidden" name="master_id" value="{{ data.master_id }}">
+            <input type="hidden" name="degree" value="{{ data.degree }}">
+            <input type="hidden" name="start_month" value="{{ data.start_month }}">
+            <input type="hidden" name="start_year" value="{{ data.start_year }}">
+            <input type="hidden" name="end_month" value="{{ data.end_month }}">
+            <input type="hidden" name="end_year" value="{{ data.end_year }}">
+            <input type="hidden" name="last_date" value="{{ data.last_date }}">
+            <input type="hidden" name="ion_number" value="{{ data.ion_number }}">
+            <input type="hidden" name="notice_date" value="{{ data.notice_date }}">
+            <input type="hidden" name="signatory_name" value="{{ data.signatory_name }}">
+            <input type="hidden" name="signatory_designation" value="{{ data.signatory_designation }}">
+            {% for dept in data.departments %}
+            <input type="hidden" name="departments" value="{{ dept }}">
+            {% endfor %}
+            <button type="submit" class="btn-edit">✏️ Edit Notice</button>
+        </form>
+
+        <form action="/download" method="POST" style="flex:1;">
+            <input type="hidden" name="master_id" value="{{ data.master_id }}">
+            <input type="hidden" name="degree" value="{{ data.degree }}">
+            <input type="hidden" name="start_month" value="{{ data.start_month }}">
+            <input type="hidden" name="start_year" value="{{ data.start_year }}">
+            <input type="hidden" name="end_month" value="{{ data.end_month }}">
+            <input type="hidden" name="end_year" value="{{ data.end_year }}">
+            <input type="hidden" name="last_date" value="{{ data.last_date }}">
+            <input type="hidden" name="ion_number" value="{{ data.ion_number }}">
+            <input type="hidden" name="notice_date" value="{{ data.notice_date }}">
+            <input type="hidden" name="signatory_name" value="{{ data.signatory_name }}">
+            <input type="hidden" name="signatory_designation" value="{{ data.signatory_designation }}">
+            {% for dept in data.departments %}
+            <input type="hidden" name="departments" value="{{ dept }}">
+            {% endfor %}
+            <button type="submit" class="btn-download">📥 Download DOCX</button>
+        </form>
+    </div>
+
+</div>
+</body>
+</html>

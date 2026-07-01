@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}Training Module - AeroForm Automatrix{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+  <a href="{{ url_for('index') }}" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; color: var(--primary-navy); font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem; transition: var(--transition-fast);">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12"></line>
+      <polyline points="12 19 5 12 12 5"></polyline>
+    </svg>
+    Back to Main Dashboard
+  </a>
+  <h2>Training Division / प्रशिक्षण प्रभाग</h2>
+  <p style="color: var(--text-muted);">Select a sub-module below to filter templates and generate documents.</p>
+</div>
+
+<div class="menu-container">
+  <!-- Left Side: Sidebar navigation representing the 4 pillars -->
+  <aside class="sidebar-menu">
+    <div class="sidebar-title">Pillars</div>
+    <ul class="sidebar-links">
+      <li>
+        <a href="#" class="sidebar-link active" data-submodule="noting">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          Noting / नोटिंग (5)
+        </a>
+      </li>
+      <li>
+        <a href="#" class="sidebar-link" data-submodule="fax_mail">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          Fax & Mail / फैक्स-ईमेल (4)
+        </a>
+      </li>
+      <li>
+        <a href="#" class="sidebar-link" data-submodule="ion">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          ION / आई.ओ.एन.
+        </a>
+      </li>
+      <li>
+        <a href="#" class="sidebar-link" data-submodule="notice">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          Notice / सूचना
+        </a>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Right Side: Document View (Templates List) -->
+  <section class="templates-section">
+    <h3 id="category-heading" style="font-size: 1.25rem; font-weight: 700; margin-bottom: 1.5rem; border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+      Noting
+    </h3>
+    
+    <div id="templates-container" class="templates-list">
+      <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+        <p>Loading templates under security filter...</p>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const sidebarLinks = document.querySelectorAll('.sidebar-link');
+    const container = document.getElementById('templates-container');
+    const heading = document.getElementById('category-heading');
+    
+    const submoduleNames = {
+      'noting': 'Noting Sheets / नोटिंग प्रलेख',
+      'fax_mail': 'Fax & Mail Correspondence / फैक्स और डाक',
+      'ion': 'Inter-Office Note (ION) / अंतर-कार्यालय नोटिंग',
+      'notice': 'Nomination Circulars & Notices / परिपत्र व सूचना'
+    };
+
+    async function loadTemplates(submodule) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 3rem; color: var(--text-muted);">
+          <p>Loading templates under security filter...</p>
+        </div>
+      `;
+      
+      heading.textContent = submoduleNames[submodule] || 'Templates';
+      
+      try {
+        const response = await fetch(`/api/templates?module=training&sub_module=${submodule}`);
+        if (!response.ok) throw new Error('Network response not ok');
+        const templates = await response.json();
+        
+        if (templates.length === 0) {
+          container.innerHTML = `
+            <div style="text-align: center; padding: 3rem; color: var(--text-muted); border: 1px dashed var(--secondary-border); border-radius: var(--radius-md);">
+              <p>No active templates found in this sub-module.</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = templates.map(t => {
+          let actionUrl = '';
+          let actionLabel = '';
+          
+          if (t.form_type === 'static') {
+            actionUrl = `/download-static/${t.id}`;
+            actionLabel = 'Download Blank';
+          } else if (t.id === 'master_tbrl_001') {
+            actionUrl = '/tbrl-noting';
+            actionLabel = 'Draft Noting';
+          } else if (t.id === 'master_tbrl_002') {
+            actionUrl = '/lecture-noting';
+            actionLabel = 'Draft Noting';
+          } else if (t.id === 'master_tbrl_003') {
+            actionUrl = '/dgmss-noting';
+            actionLabel = 'Draft Noting';
+          } else if (t.id === 'master_tbrl_004') {
+            actionUrl = '/fee-noting';
+            actionLabel = 'Draft Noting';
+          } else if (t.id === 'master_tbrl_005') {
+            actionUrl = '/cancellation-noting';
+            actionLabel = 'Draft Noting';
+          } else {
+            actionUrl = `/dynamic-form/${t.id}`;
+            actionLabel = 'Draft Document';
+          }
+          
+          return `
+            <div class="template-card" style="opacity: 0; transform: translateY(10px); animation: fadeIn 0.3s ease forwards;">
+              <div class="template-info">
+                <h4>${t.name}</h4>
+                <p>${t.description || 'No description available for this institutional template.'}</p>
+              </div>
+              <div>
+                <a href="${actionUrl}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">${actionLabel}</a>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 3rem; color: var(--error); border: 1px solid var(--error); border-radius: var(--radius-md); background: rgba(197, 48, 48, 0.05)">
+            <p>Error loading templates: ${err.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // Handle sidebar links click
+    sidebarLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        
+        sidebarLinks.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+        
+        const submodule = link.getAttribute('data-submodule');
+        loadTemplates(submodule);
+        
+        // Update URL state
+        const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?sub_module=' + submodule;
+        window.history.pushState({path: newUrl}, '', newUrl);
+      });
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeSub = urlParams.get('sub_module') || 'noting';
+    
+    sidebarLinks.forEach(l => {
+      if (l.getAttribute('data-submodule') === activeSub) {
+        l.classList.add('active');
+      } else {
+        l.classList.remove('active');
+      }
+    });
+
+    loadTemplates(activeSub);
+  });
+</script>
+
+<style>
+  @keyframes fadeIn {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+{% endblock %}

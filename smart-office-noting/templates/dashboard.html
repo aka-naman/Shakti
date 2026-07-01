@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Training Nomination & Notice Generation{% endblock %}
+
+{% block content %}
+<div class="hero">
+  <h2>Training Nomination & Notice Generation</h2>
+  <p>Welcome to the AeroForm Automatrix terminal. Select a module below to generate official notices, noting sheets, fax forms, and inter-office notes (ION) mapped to institutional standards.</p>
+</div>
+
+<div class="modules-section">
+  <h2 style="font-size: 1.4rem; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 1.5rem;">Select Functional Module</h2>
+  
+  <div class="modules-grid">
+    <!-- Training Module Card -->
+    <div class="module-card training-card">
+      <div class="card-header-bar" style="background-color: var(--accent-gold);"></div>
+      <div style="margin-top: 1rem; display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; background-color: rgba(0, 45, 98, 0.1); border-radius: var(--radius-md);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-navy)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+      </div>
+      <h3>Training Module / प्रशिक्षण प्रभाग</h3>
+      <p>Initiate officer nominations, process inter-office notes (ION), create official noting sheets (Common, Lecture, Fee-related), draft nomination faxes, and write notices.</p>
+      <a href="{{ url_for('training_menu') }}" class="btn btn-primary" id="btn-enter-training" style="margin-top: auto;">Enter Training Module</a>
+    </div>
+
+    <!-- Internship Module Card -->
+    <div class="module-card internship-card">
+      <div class="card-header-bar" style="background-color: var(--accent-gold);"></div>
+      <div style="margin-top: 1rem; display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; background-color: rgba(197, 160, 89, 0.1); border-radius: var(--radius-md);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold-dark)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <h3>Internship Module / इंटर्नशिप प्रभाग</h3>
+      <p>Draft and manage student trainee nominations, process blank trainee requirement forms, and review active allocations. Fully integrated with historical masters.</p>
+      <a href="{{ url_for('internship_menu') }}" class="btn btn-secondary" style="margin-top: auto;">Enter Internship Module</a>
+    </div>
+  </div>
+</div>
+
+<div class="activity-section" style="margin-top: 3.5rem;">
+  <div class="activity-card">
+    <div class="activity-header">
+      <span style="font-size: 1.15rem; font-weight: 700; color: var(--primary-navy);">🕐 Recent Activity & Document History</span>
+      {% if history %}
+      <form action="/history/clear" method="POST">
+        <button type="submit" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: var(--error); color: var(--error);" onclick="return confirm('Clear all generation history?')">Clear History</button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if history %}
+      {% for item in history %}
+      <div class="activity-item">
+        <div class="activity-left">
+          <div class="activity-dot"></div>
+          <div class="activity-info">
+            <div class="activity-title">
+              {% if item.master_used %}
+                {{ item.master_used }}
+              {% else %}
+                {{ item.degree }} — {{ item.period }}
+              {% endif %}
+            </div>
+            <div class="activity-meta">
+              📅 Generated: {{ item.generated_at }} 
+              {% if item.departments_count > 0 %}
+              &nbsp;|&nbsp; 🏢 {{ item.departments_count }} entries
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <a href="/history/download/{{ item.filename }}" class="btn-redownload">📥 Download</a>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.9rem;">
+        No documents generated or downloaded yet.
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

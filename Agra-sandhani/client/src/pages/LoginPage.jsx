@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { Box, TextField, Button, Typography, Container, Alert, CircularProgress } from '@mui/material';
 
 export default function LoginPage() {
     const [username, setUsername] = useState('');
@@ -32,53 +33,79 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="auth-page">
-            <div className="auth-container">
-                <div className="auth-header">
-                    <div className="auth-logo">👁️</div>
-                    <h1>अग्र-Sandhani</h1>
-                    <p className="auth-subtitle">The Omniscient Eye of Digital Records</p>
-                </div>
+        <Container component="main" maxWidth="xs">
+            <Box
+                sx={{
+                    marginTop: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                }}
+            >
+                <Box
+                    sx={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        mb: 4,
+                    }}
+                >
+                    <Typography component="div" variant="h4" sx={{ mb: 1 }}>
+                        👁️
+                    </Typography>
+                    <Typography component="h1" variant="h5">
+                        अग्र-Sandhani
+                    </Typography>
+                    <Typography variant="subtitle1" color="text.secondary">
+                        The Omniscient Eye of Digital Records
+                    </Typography>
+                </Box>
 
-                {error && <div className="alert alert-error">{error}</div>}
+                {error && (
+                    <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
+                        {error}
+                    </Alert>
+                )}
 
-                <form onSubmit={handleSubmit} className="auth-form">
-                    <div className="form-group">
-                        <label htmlFor="username">Username</label>
-                        <input
-                            id="username"
-                            type="text"
-                            className="form-input"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Enter your username"
-                            required
-                            autoFocus
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label htmlFor="password">Password</label>
-                        <input
-                            id="password"
-                            type="password"
-                            className="form-input"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Enter your password"
-                            required
-                        />
-                    </div>
-
-                    <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-                        {loading ? <span className="spinner-sm"></span> : 'Sign In'}
-                    </button>
-                </form>
-
-                <p className="auth-footer">
-                    Don't have an account? <Link to="/register">Create one</Link>
-                </p>
-            </div>
-        </div>
+                <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+                    <TextField
+                        margin="normal"
+                        required
+                        fullWidth
+                        id="username"
+                        label="Username"
+                        name="username"
+                        autoComplete="username"
+                        autoFocus
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                    />
+                    <TextField
+                        margin="normal"
+                        required
+                        fullWidth
+                        name="password"
+                        label="Password"
+                        type="password"
+                        id="password"
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <Button
+                        type="submit"
+                        fullWidth
+                        variant="contained"
+                        sx={{ mt: 3, mb: 2 }}
+                        disabled={loading}
+                    >
+                        {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+                    </Button>
+                </Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                    Don't have an account? <Link to="/register" style={{ textDecoration: 'none', color: theme => theme.palette.primary.main }}>Create one</Link>
+                </Typography>
+            </Box>
+        </Container>
     );
 }

@@ -8,6 +8,118 @@ const fs = require('fs');
 
 const router = express.Router();
 
+/**
+ * GET /api/forms/:targetFormId/lookup
+ * @desc Lookup latest submission in a target form based on a field and value
+ * @access Authenticated
+ */
+router.get('/:targetFormId/lookup', authenticate, async (req, res) => {
+    try {
+        const { lookupField, value } = req.query;
+        if (!lookupField || !value) {
+            return res.status(400).json({ error: 'lookupField and value are required' });
+        }
+
+        // Check if user has access to target form
+        const access = await checkFormAccess(req.params.targetFormId, req.user.id, req.user.role);
+        if (!access.exists || !access.hasAccess) {
+            return res.status(403).json({ error: 'Denied access to target form' });
+        }
+
+        const result = await pool.query(`
+            SELECT s.data_json
+            FROM submissions s
+            JOIN form_versions fv ON s.form_version_id = fv.id
+            WHERE fv.form_id = $1
+              AND s.deleted_at IS NULL
+              AND s.data_json->>$2 = $3
+            ORDER BY s.submitted_at DESC
+            LIMIT 1
+        `, [req.params.targetFormId, lookupField, value]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Record not found' });
+        }
+
+        res.json({ data: result.rows[0].data_json });
+    } catch (err) {
+        console.error('Lookup error:', err);
+        res.status(500).json({ error: 'Lookup failed' });
+    }
+});
+
+/**
+ * POST /api/forms/:formId/aggregate
+ * @desc Calculate historical principle and sum of deductions for a ledger chain
+ * @access Authenticated
+ */
+router.post('/:formId/aggregate', authenticate, async (req, res) => {
+    try {
+        const { principleField, transactionField, groupByField, groupByValue, excludeSubmissionId } = req.body;
+        if (!transactionField) {
+            return res.status(400).json({ error: 'transactionField is required' });
+        }
+
+        const access = await checkFormAccess(req.params.formId, req.user.id, req.user.role);
+        if (!access.exists || !access.hasAccess) {
+            return res.status(403).json({ error: 'Denied access to form' });
+        }
+
+        // 1. Fetch the Principle (from the oldest submission in this chain)
+        let principle = 0;
+        if (principleField) {
+            let pQuery = `
+                SELECT s.data_json->>$2 as principle
+                FROM submissions s
+                JOIN form_versions fv ON s.form_version_id = fv.id
+                WHERE fv.form_id = $1
+                  AND s.deleted_at IS NULL
+            `;
+            const pParams = [req.params.formId, principleField];
+            if (groupByField && groupByValue !== undefined) {
+                pQuery += ` AND s.data_json->>$3 = $4`;
+                pParams.push(groupByField, groupByValue);
+            }
+            pQuery += ` ORDER BY s.submitted_at ASC LIMIT 1`;
+            const pResult = await pool.query(pQuery, pParams);
+            if (pResult.rows.length > 0) {
+                principle = parseFloat(pResult.rows[0].principle) || 0;
+            }
+        }
+
+        // 2. Fetch Total Deductions (sum of transaction field in this chain)
+        let dQuery = `
+            SELECT SUM(COALESCE((s.data_json->>$2)::NUMERIC, 0)) as total
+            FROM submissions s
+            JOIN form_versions fv ON s.form_version_id = fv.id
+            WHERE fv.form_id = $1
+              AND s.deleted_at IS NULL
+        `;
+        const dParams = [req.params.formId, transactionField];
+        let pIdx = 3;
+
+        if (groupByField && groupByValue !== undefined) {
+            dQuery += ` AND s.data_json->>$${pIdx} = $${pIdx + 1}`;
+            dParams.push(groupByField, groupByValue);
+            pIdx += 2;
+        }
+
+        if (excludeSubmissionId) {
+            dQuery += ` AND s.id != $${pIdx}`;
+            dParams.push(excludeSubmissionId);
+        }
+
+        const dResult = await pool.query(dQuery, dParams);
+        res.json({ 
+            principle, 
+            totalDeductions: parseFloat(dResult.rows[0].total) || 0 
+        });
+    } catch (err) {
+        console.error('Aggregate error:', err);
+        res.status(500).json({ error: 'Aggregation failed' });
+    }
+});
+
 // Configure storage for large file uploads (1GB)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -103,7 +215,8 @@ router.post('/import-excel', authenticate, upload.single('file'), async (req, re
             fieldIds.push(fieldRes.rows[0].id);
         }
 
-        let importedCount = 0;
+        // PREPARE BULK INSERT
+        const submissions = [];
         for (let i = 1; i < rows.length; i++) {
             const rowArr = rows[i];
             const cleanRowData = {};
@@ -124,26 +237,31 @@ router.post('/import-excel', authenticate, upload.single('file'), async (req, re
             });
 
             if (hasValue) {
-                const subRes = await client.query(
-                    `INSERT INTO submissions (form_version_id, user_id, data_json) 
-                     VALUES ($1, $2, $3) RETURNING id`,
-                    [versionId, req.user.id, JSON.stringify(cleanRowData)]
-                );
-                const submissionId = subRes.rows[0].id;
-
-                for (let idx = 0; idx < headerLabels.length; idx++) {
-                    await client.query(
-                        'INSERT INTO submission_values (submission_id, field_id, value) VALUES ($1, $2, $3)',
-                        [submissionId, fieldIds[idx], cleanRowData[headerLabels[idx]]]
-                    );
-                }
-                importedCount++;
+                submissions.push(cleanRowData);
             }
+        }
+
+        // Execute Bulk Insert
+        if (submissions.length > 0) {
+            // Using a single query with unnest for performance
+            // We only insert into data_json now
+            const values = submissions.map(data => [versionId, req.user.id, JSON.stringify(data)]);
+            
+            // Prepare the bulk query
+            let query = 'INSERT INTO submissions (form_version_id, user_id, data_json) VALUES ';
+            const queryParams = [];
+            submissions.forEach((data, idx) => {
+                const base = idx * 3;
+                query += `($${base + 1}, $${base + 2}, $${base + 3})${idx === submissions.length - 1 ? '' : ','} `;
+                queryParams.push(versionId, req.user.id, JSON.stringify(data));
+            });
+
+            await client.query(query, queryParams);
         }
 
         await client.query('COMMIT');
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-        res.json({ message: `Successfully created form "${name}" and imported ${importedCount} records`, formId });
+        res.json({ message: `Successfully created form "${name}" and imported ${submissions.length} records`, formId });
 
     } catch (err) {
         console.error('[IMPORT] FATAL:', err);
@@ -160,23 +278,56 @@ router.post('/import-excel', authenticate, upload.single('file'), async (req, re
  */
 router.get('/:id/validate-unique', authenticate, async (req, res) => {
     try {
-        const { label, value } = req.query;
+        const { label, value, excludeSubmissionId } = req.query;
         if (!label || !value) return res.status(400).json({ error: 'Label and value are required' });
 
-        const result = await pool.query(`
+        let queryStr = `
             SELECT s.id
             FROM submissions s
             JOIN form_versions fv ON s.form_version_id = fv.id
             WHERE fv.form_id = $1
               AND s.deleted_at IS NULL
               AND LOWER(s.data_json->>$2) = LOWER($3)
-            LIMIT 1
-        `, [req.params.id, label, value.trim()]);
+        `;
+        const params = [req.params.id, label, value.trim()];
+        
+        if (excludeSubmissionId) {
+            queryStr += ` AND s.id != $4`;
+            params.push(Number(excludeSubmissionId));
+        }
+        
+        queryStr += ` LIMIT 1`;
+
+        const result = await pool.query(queryStr, params);
 
         res.json({ exists: result.rows.length > 0 });
     } catch (err) {
         console.error('Validate unique error:', err);
         res.status(500).json({ error: 'Validation failed' });
+    }
+});
+
+/**
+ * GET /api/forms/:id/prefill-session/:prefillToken
+ * Retrieve temporary prefilled form values for the client React app
+ */
+router.get('/:id/prefill-session/:prefillToken', authenticate, async (req, res) => {
+    try {
+        const { prefillToken } = req.params;
+        global.prefillCache = global.prefillCache || new Map();
+        const sessionData = global.prefillCache.get(prefillToken);
+        
+        if (!sessionData || sessionData.formId !== req.params.id) {
+            return res.status(404).json({ error: 'Prefill session not found or expired' });
+        }
+        
+        // Single use token: delete it
+        global.prefillCache.delete(prefillToken);
+        
+        res.json(sessionData);
+    } catch (err) {
+        console.error('Fetch prefill session error:', err);
+        res.status(500).json({ error: 'Failed to fetch prefill session' });
     }
 });
 
@@ -373,21 +524,9 @@ router.post('/:id/duplicate-with-records', authenticate, async (req, res) => {
 
             const subsRes = await client.query('SELECT * FROM submissions WHERE form_version_id = $1', [oldVer.id]);
             for (const s of subsRes.rows) {
-                const newSubRes = await client.query(
-                    'INSERT INTO submissions (form_version_id, user_id, submitted_at, updated_at, updated_by, data_json, remarks, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-                    [newVerId, s.user_id, s.submitted_at, s.updated_at, s.updated_by, JSON.stringify(s.data_json), s.remarks, s.deleted_at]
-                );
-                const newSubId = newSubRes.rows[0].id;
-
                 await client.query(
-                    `INSERT INTO submission_values (submission_id, field_id, value)
-                     SELECT $1, 
-                            ($3::int[])[array_position($2::int[], field_id)], 
-                            value
-                     FROM submission_values 
-                     WHERE submission_id = $4 
-                       AND field_id = ANY($2::int[])`,
-                    [newSubId, Object.keys(fieldMap).map(Number), Object.values(fieldMap).map(Number), s.id]
+                    'INSERT INTO submissions (form_version_id, user_id, submitted_at, updated_at, updated_by, data_json, remarks, deleted_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+                    [newVerId, s.user_id, s.submitted_at, s.updated_at, s.updated_by, JSON.stringify(s.data_json), s.remarks, s.deleted_at]
                 );
             }
         }
@@ -492,8 +631,34 @@ router.get('/admin/stats', authenticate, async (req, res) => {
         const totalUsers = await pool.query('SELECT COUNT(*) as count FROM users');
         const totalForms = await pool.query('SELECT COUNT(*) as count FROM forms WHERE deleted_at IS NULL');
         const totalSubmissions = await pool.query('SELECT COUNT(*) as count FROM submissions WHERE deleted_at IS NULL');
-        res.json({ stats: { total_users: parseInt(totalUsers.rows[0].count), total_forms: parseInt(totalForms.rows[0].count), total_submissions: parseInt(totalSubmissions.rows[0].count) } });
-    } catch (err) { res.status(500).json({ error: 'Failed' }); }
+        
+        const users = await pool.query(`
+            SELECT 
+                u.id, 
+                u.username, 
+                u.role, 
+                u.created_at,
+                (SELECT COUNT(*)::int FROM forms f WHERE f.user_id = u.id AND f.deleted_at IS NULL) as form_count,
+                (SELECT COUNT(*)::int FROM submissions s 
+                 JOIN form_versions fv ON s.form_version_id = fv.id 
+                 JOIN forms f ON fv.form_id = f.id 
+                 WHERE f.user_id = u.id AND s.deleted_at IS NULL) as submission_count
+            FROM users u
+            ORDER BY u.created_at DESC
+        `);
+
+        res.json({ 
+            stats: { 
+                total_users: parseInt(totalUsers.rows[0].count), 
+                total_forms: parseInt(totalForms.rows[0].count), 
+                total_submissions: parseInt(totalSubmissions.rows[0].count),
+                users: users.rows
+            } 
+        });
+    } catch (err) { 
+        console.error('Admin stats error:', err);
+        res.status(500).json({ error: 'Failed' }); 
+    }
 });
 
 module.exports = router;

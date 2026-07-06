@@ -117,8 +117,9 @@ router.get('/:id', authenticate, async (req, res) => {
             const params = [formId];
 
             if (search && search.trim() !== '') {
-                searchQuery += ` AND s.data_json::text ILIKE $2`; 
-                params.push(`%${search.trim()}%`);
+                // Optimized GIN search using JSON Path
+                searchQuery += ` AND s.data_json @? '$.* ? (@.type() == "string" && @ like_regex $2 flag "i")'`; 
+                params.push(search.trim());
             }
 
             // Dynamic Sorting logic for Export
@@ -260,48 +261,6 @@ router.post('/pdf/:id', authenticate, async (req, res) => {
         const cgpaField = allFields.find(f => f.type === 'cgpa_converter');
         const branchField = allFields.find(f => f.type === 'branch');
 
-        // 2. Build Query
-        let query = `
-            SELECT s.submitted_at, s.data_json
-            FROM submissions s
-            JOIN form_versions fv ON s.form_version_id = fv.id
-            WHERE fv.form_id = $1 AND s.deleted_at IS NULL
-        `;
-        const params = [formId];
-
-        if (searchTerm && searchTerm.trim() !== '') {
-            query += ` AND s.data_json::text ILIKE $2`;
-            params.push(`%${searchTerm.trim()}%`);
-        }
-
-        // Apply Sorting & Grouping
-        let orderBy = '';
-        const groupFieldLabel = groupBy; // Assuming groupBy is the label string
-
-        if (groupFieldLabel) {
-            orderBy = `ORDER BY (s.data_json->>'${groupFieldLabel}') ASC NULLS LAST`;
-            if ((sortMode === 'cgpa_desc' || sortMode === 'branch_cgpa') && cgpaField) {
-                orderBy += `, (NULLIF(substring(s.data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
-            } else {
-                orderBy += `, s.submitted_at DESC`;
-            }
-        } else {
-            if (sortMode === 'cgpa_desc' && cgpaField) {
-                orderBy = `ORDER BY (NULLIF(substring(s.data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
-            } else if (sortMode === 'branch_alpha' && branchField) {
-                orderBy = `ORDER BY (s.data_json->>'${branchField.label}') ASC NULLS LAST`;
-            } else if (sortMode === 'branch_cgpa' && branchField && cgpaField) {
-                orderBy = `ORDER BY (s.data_json->>'${branchField.label}') ASC NULLS LAST, 
-                           (NULLIF(substring(s.data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
-            } else {
-                orderBy = `ORDER BY s.submitted_at DESC`;
-            }
-        }
-
-        query += ` ${orderBy}`;
-        const subsResult = await pool.query(query, params);
-        const submissions = subsResult.rows;
-
         // 3. Calculate Layout Metrics (Nuclear Auto-Scaling)
         const columnCount = selectedFields.length + 1; // +1 for S.No
         let fontSize = 9;
@@ -360,20 +319,20 @@ router.post('/pdf/:id', authenticate, async (req, res) => {
             }
         };
 
-        // 5. Generate Content (Grouping Logic)
+        // 2. Fetch and Process Rows in Batches for PDF
+        let offset = 0;
+        const limit = 2000;
+        let hasMore = true;
+        let sno = 1;
         let currentGroup = null;
         let currentTableData = [];
-
+        
+        const groupFieldLabel = groupBy;
         const tableHeaders = [
             { text: 'S.No', style: 'tableHeader' },
             ...selectedFields.map(f => ({ text: f, style: 'tableHeader' }))
         ];
-
-        // Column Widths logic: When tight, everything except S.No is '*'
-        const widths = ['auto'];
-        selectedFields.forEach(() => {
-            widths.push('*'); // Distribute space equally among all data fields
-        });
+        const widths = ['auto', ...selectedFields.map(() => '*')];
 
         const finalizeTable = (groupVal) => {
             if (currentTableData.length > 0) {
@@ -391,7 +350,6 @@ router.post('/pdf/:id', authenticate, async (req, res) => {
                     table: {
                         headerRows: 1,
                         widths: widths,
-                        // Ensure the table takes exactly 100% of available width
                         body: [tableHeaders, ...currentTableData]
                     },
                     layout: {
@@ -406,26 +364,74 @@ router.post('/pdf/:id', authenticate, async (req, res) => {
             }
         };
 
-        let sno = 1;
-        submissions.forEach((sub, idx) => {
-            const groupVal = groupFieldLabel ? (sub.data_json[groupFieldLabel] || 'Not Specified') : null;
+        while (hasMore) {
+            let query = `
+                SELECT s.submitted_at, s.data_json
+                FROM submissions s
+                JOIN form_versions fv ON s.form_version_id = fv.id
+                WHERE fv.form_id = $1 AND s.deleted_at IS NULL
+            `;
+            const params = [formId];
 
-            if (groupFieldLabel && groupVal !== currentGroup) {
-                finalizeTable(currentGroup);
-                currentGroup = groupVal;
-                sno = 1; // Reset S.No for new group/page
+            if (searchTerm && searchTerm.trim() !== '') {
+                // Optimized GIN search using JSON Path
+                query += ` AND s.data_json @? '$.* ? (@.type() == "string" && @ like_regex $2 flag "i")'`; 
+                params.push(searchTerm.trim());
             }
 
-            const row = [
-                { text: sno++, style: 'tableCell', alignment: 'center' },
-                ...selectedFields.map(label => {
-                    let val = sub.data_json[label] || '';
-                    if (typeof val === 'string') val = val.replace(/ \|\|\| /g, ', ');
-                    return { text: val, style: 'tableCell' };
-                })
-            ];
-            currentTableData.push(row);
-        });
+            // Apply Sorting & Grouping
+            let orderBy = '';
+            if (groupFieldLabel) {
+                orderBy = `ORDER BY (s.data_json->>'${groupFieldLabel}') ASC NULLS LAST`;
+                if ((sortMode === 'cgpa_desc' || sortMode === 'branch_cgpa') && cgpaField) {
+                    orderBy += `, (NULLIF(substring(s.data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
+                } else {
+                    orderBy += `, s.submitted_at DESC`;
+                }
+            } else {
+                if (sortMode === 'cgpa_desc' && cgpaField) {
+                    orderBy = `ORDER BY (NULLIF(substring(s.data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
+                } else if (sortMode === 'branch_alpha' && branchField) {
+                    orderBy = `ORDER BY (s.data_json->>'${branchField.label}') ASC NULLS LAST`;
+                } else if (sortMode === 'branch_cgpa' && branchField && cgpaField) {
+                    orderBy = `ORDER BY (s.data_json->>'${branchField.label}') ASC NULLS LAST, 
+                               (NULLIF(substring(s.data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
+                } else {
+                    orderBy = `ORDER BY s.submitted_at DESC`;
+                }
+            }
+
+            query += ` ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+            const subsResult = await pool.query(query, params);
+
+            if (subsResult.rows.length === 0) {
+                hasMore = false;
+                break;
+            }
+
+            subsResult.rows.forEach((sub) => {
+                const groupVal = groupFieldLabel ? (sub.data_json[groupFieldLabel] || 'Not Specified') : null;
+
+                if (groupFieldLabel && groupVal !== currentGroup) {
+                    finalizeTable(currentGroup);
+                    currentGroup = groupVal;
+                    sno = 1;
+                }
+
+                const row = [
+                    { text: sno++, style: 'tableCell', alignment: 'center' },
+                    ...selectedFields.map(label => {
+                        let val = sub.data_json[label] || '';
+                        if (typeof val === 'string') val = val.replace(/ \|\|\| /g, ', ');
+                        return { text: val, style: 'tableCell' };
+                    })
+                ];
+                currentTableData.push(row);
+            });
+
+            offset += limit;
+            if (subsResult.rows.length < limit) hasMore = false;
+        }
 
         finalizeTable(currentGroup);
 

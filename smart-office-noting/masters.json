@@ -11,7 +11,10 @@
             "module": "training",
             "sub_module": "noting",
             "agra_form_id": 23,
-            "field_map": {},
+            "field_map": {
+                "DRONA Email ID": "Drona Mail ID",
+                "Cont.No.": "Contact Number"
+            },
             "variables": [
                 "REF_NO",
                 "SUBJECT_HINDI",
@@ -26,7 +29,36 @@
                 "SIGNATORY_1_DESIG",
                 "SIGNATORY_2_NAME",
                 "SIGNATORY_2_DESIG"
-            ]
+            ],
+            "import_map": {
+                "PIS n.": "PIS number",
+                "Name & Design.": "Name",
+                "DOB": "DOB",
+                "Cont.No.": "Contact Number",
+                "DRONA Email ID": "Drona Mail ID",
+                "Qualification": "Qualification"
+            },
+            "export_map": {
+                "PIS n.": "PIS number",
+                "Name & Design.": "Name",
+                "DOB": "DOB",
+                "Cont.No.": "Contact Number",
+                "DRONA Email ID": "Drona Mail ID",
+                "Qualification": "Qualification"
+            },
+            "nominee_columns": [
+                "PIS n.",
+                "Name & Design.",
+                "Gen.",
+                "DOB",
+                "Cont.No.",
+                "DRONA Email ID",
+                "Qualification",
+                "Key Function Area",
+                "WOW"
+            ],
+            "agra_import_form_id": 23,
+            "agra_export_form_id": 43
         },
         {
             "id": "master_tbrl_002",

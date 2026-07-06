@@ -29,27 +29,33 @@ router.get('/forms', async (req, res) => {
  */
 router.get('/search', async (req, res) => {
     try {
-        const { query } = req.query;
+        const { query, formId } = req.query;
         if (!query || query.length < 2) {
             return res.json({ results: [] });
         }
 
+        let whereClause = 'WHERE s.deleted_at IS NULL';
+        const params = [`%${query}%`];
+
+        if (formId) {
+            whereClause += ' AND fv.form_id = $2';
+            params.push(formId);
+        }
+
         // 🚀 OPTIMIZED GENERALIZED SEARCH
-        // We use a multi-stage search strategy:
-        // 1. Fast-path: Check common keys (PIS, Name) directly - these can use the GIN index if btree_gin is enabled
-        // 2. Fallback: Search the entire JSON blob as text (Preserves 100% compatibility for any key name)
         const result = await pool.query(`
             WITH matched_subs AS (
                 SELECT s.id, s.data_json
                 FROM submissions s
-                WHERE s.deleted_at IS NULL
+                JOIN form_versions fv ON s.form_version_id = fv.id
+                ${whereClause}
                   AND (
-                      -- Fast-path for common fields (Speed up 90% of cases)
+                      -- Fast-path for common fields
                       s.data_json->>'pis' ILIKE $1 OR 
                       s.data_json->>'PIS' ILIKE $1 OR 
                       s.data_json->>'name' ILIKE $1 OR 
                       s.data_json->>'Name' ILIKE $1 OR
-                      -- Complete fallback for dynamic keys (Ensures nothing breaks)
+                      -- Complete fallback for dynamic keys (Optimized with Trigram)
                       s.data_json::text ILIKE $1
                   )
                 ORDER BY s.submitted_at DESC
@@ -62,21 +68,21 @@ router.get('/search', async (req, res) => {
             candidates AS (
                 SELECT 
                     id,
-                    -- Candidate for PIS: Shortest alphanumeric string that matches query or is first key
-                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND (f2.key ILIKE \'%pis%\' OR f2.key ILIKE \'%p.i.s.%\' OR f2.key ILIKE \'%emp id%\' OR f2.key ILIKE \'%personnel%\' OR f2.key = \'id\') LIMIT 1) as pis_direct,
-                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND f2.value ILIKE $1 AND f2.key NOT ILIKE \'%date%\' AND f2.key NOT ILIKE \'%dob%\' ORDER BY length(value) ASC LIMIT 1) as pis_fallback,
-                    -- Candidate for Name: Field containing \'name\'
-                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND f2.key ILIKE \'%name%\' LIMIT 1) as name_direct,
-                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND length(value) > 5 AND value NOT ILIKE \'%@%\' LIMIT 1) as name_fallback
+                    -- Candidate for PIS
+                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND (f2.key ILIKE '%pis%' OR f2.key ILIKE '%p.i.s.%' OR f2.key ILIKE '%emp id%' OR f2.key ILIKE '%personnel%' OR f2.key = 'id') LIMIT 1) as pis_direct,
+                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND f2.value ILIKE $1 AND f2.key NOT ILIKE '%date%' AND f2.key NOT ILIKE '%dob%' ORDER BY length(value) ASC LIMIT 1) as pis_fallback,
+                    -- Candidate for Name
+                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND f2.key ILIKE '%name%' LIMIT 1) as name_direct,
+                    (SELECT value FROM flattened f2 WHERE f2.id = matched_subs.id AND length(value) > 5 AND value NOT ILIKE '%@%' LIMIT 1) as name_fallback
                 FROM matched_subs
             )
             SELECT DISTINCT ON (pis)
                 COALESCE(pis_direct, pis_fallback) as pis,
-                COALESCE(name_direct, name_fallback, \'No Name Identified\') as name
+                COALESCE(name_direct, name_fallback, 'No Name Identified') as name
             FROM candidates
             WHERE (pis_direct ILIKE $1 OR pis_fallback ILIKE $1 OR name_direct ILIKE $1 OR name_fallback ILIKE $1)
             LIMIT 15
-        `, [`%${query}%`]);
+        `, params);
 
         res.json({ results: result.rows });
     } catch (err) {
@@ -115,16 +121,13 @@ router.get('/lookup', async (req, res) => {
 
         const fields = fieldsResult.rows;
 
-        // 2. Identify the PIS label dynamically (fuzzy matching)
-        // We look for labels containing 'PIS', 'PERSONNEL', or 'ID' (case insensitive)
+        // 2. Identify the PIS/Trigger label dynamically (fuzzy matching)
         let pisLabel = fields.find(f => {
             const l = f.label.toLowerCase();
-            const cleanL = l.replace(/\./g, '');
-            return cleanL.includes('pis') || l.includes('personnel') || l.includes('emp id') || l === 'id';
+            const cleanL = l.replace(/\./g, '').replace(/_/g, ' ');
+            return cleanL.includes('pis') || l.includes('personnel') || l.includes('emp id') || 
+                   l.includes('fax') || l.includes('roll') || l === 'id';
         })?.label;
-
-        // Fallback: If no fuzzy match, try to find a field marked 'is_unique' (if we had that info here)
-        // For now, if pisLabel is not found, we will search ALL fields for the PIS value.
 
         let query = `
             SELECT s.id, s.data_json, f.name as form_name
@@ -139,9 +142,8 @@ router.get('/lookup', async (req, res) => {
             query += ` AND s.data_json->>$2 = $3`;
             params.push(pisLabel, pis);
         } else {
-            // 🚀 OPTIMIZED: Search all keys in data_json for the PIS value using JSON path
-            // This is significantly faster than jsonb_each_text and can use GIN indexes
-            query += ` AND s.data_json @? '$.* ? (@ == $2)'`;
+            // Case-insensitive search across all values
+            query += ` AND EXISTS (SELECT 1 FROM jsonb_each_text(s.data_json) WHERE value ILIKE $2)`;
             params.push(pis);
         }
 
@@ -151,21 +153,20 @@ router.get('/lookup', async (req, res) => {
 
         // 🛡️ FALLBACK: If not found in specified form, search ALL forms
         if (result.rows.length === 0) {
-            console.log(`[SERVICE] PIS ${pis} not found in form ${formId}, searching all forms...`);
             result = await pool.query(`
                 SELECT s.id, s.data_json, f.name as form_name
                 FROM submissions s
                 JOIN form_versions fv ON s.form_version_id = fv.id
                 JOIN forms f ON fv.form_id = f.id
                 WHERE s.deleted_at IS NULL
-                  AND s.data_json @? '$.* ? (@ == $1)'
+                  AND EXISTS (SELECT 1 FROM jsonb_each_text(s.data_json) WHERE value ILIKE $1)
                 ORDER BY s.submitted_at DESC
                 LIMIT 1
             `, [pis]);
         }
 
         if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'PIS not found in any form' });
+            return res.status(404).json({ error: 'PIS not found' });
         }
 
         const submission = result.rows[0];
@@ -179,17 +180,13 @@ router.get('/lookup', async (req, res) => {
             suggested_mapping: {}
         };
 
-        // 🚀 DYNAMIC ROLE DISCOVERY
-        // We scan the data to find fields that likely match common noting categories
         const labels = Object.keys(data);
-        
-        // 1. First pass: Keyword-based matching (High priority)
         labels.forEach(label => {
             const low = label.toLowerCase();
-            const cleanLow = low.replace(/\./g, '');
+            const cleanLow = low.replace(/\./g, '').replace(/_/g, ' ');
 
-            // PIS/ID (Specific keywords)
-            if (!response.suggested_mapping.pis && (cleanLow.includes('pis') || low.includes('personnel') || low.includes('emp id') || low === 'id')) {
+            // PIS/ID/Fax
+            if (!response.suggested_mapping.pis && (cleanLow.includes('pis') || low.includes('personnel') || low.includes('emp id') || low.includes('fax') || low === 'id')) {
                 response.suggested_mapping.pis = label;
             }
             // Name
@@ -200,9 +197,13 @@ router.get('/lookup', async (req, res) => {
             else if (!response.suggested_mapping.designation && (low.includes('desig') || low.includes('rank') || low.includes('post'))) {
                 response.suggested_mapping.designation = label;
             }
-            // DOB
-            else if (!response.suggested_mapping.dob && (low.includes('dob') || low.includes('birth') || (low.includes('date') && !low.includes('join')))) {
-                response.suggested_mapping.dob = label;
+            // Email/Contact
+            else if (!response.suggested_mapping.email && (low.includes('email') || low.includes('drona') || low.includes('mail'))) {
+                response.suggested_mapping.email = label;
+            }
+            // Mobile
+            else if (!response.suggested_mapping.mobile && (low.includes('mobile') || low.includes('phone') || low.includes('contact'))) {
+                response.suggested_mapping.mobile = label;
             }
         });
 
@@ -247,6 +248,66 @@ router.get('/lookup', async (req, res) => {
     } catch (err) {
         console.error('Service lookup error:', err);
         res.status(500).json({ error: 'Internal server error during lookup' });
+    }
+});
+
+// Initialize global prefill cache for service-to-client exchange
+global.prefillCache = global.prefillCache || new Map();
+
+/**
+ * @route GET /api/service/forms/:formId/fields
+ * @desc  Fetch field list for a form to map them dynamically in master manager
+ * @access Internal (Service-to-Service)
+ */
+router.get('/forms/:formId/fields', async (req, res) => {
+    try {
+        const formId = req.params.formId;
+        const versionResult = await pool.query(
+            'SELECT id FROM form_versions WHERE form_id = $1 ORDER BY version_number DESC LIMIT 1',
+            [formId]
+        );
+        if (versionResult.rows.length === 0) return res.status(404).json({ error: 'Form not found' });
+        const latestVersionId = versionResult.rows[0].id;
+
+        const fieldsResult = await pool.query(
+            'SELECT id, label, type FROM form_fields WHERE form_version_id = $1 ORDER BY field_order',
+            [latestVersionId]
+        );
+        res.json({ fields: fieldsResult.rows });
+    } catch (err) {
+        console.error('Service fields error:', err);
+        res.status(500).json({ error: 'Failed to fetch fields' });
+    }
+});
+
+/**
+ * @route POST /api/service/prefill-session
+ * @desc  Create a temporary prefilled form session from external service
+ * @access Internal (Service-to-Service)
+ */
+router.post('/prefill-session', async (req, res) => {
+    try {
+        const { formId, values, submissionId } = req.body;
+        if (!formId) return res.status(400).json({ error: 'formId is required' });
+
+        const prefillToken = `prefill_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+
+        global.prefillCache.set(prefillToken, {
+            formId: String(formId),
+            values: values || {},
+            submissionId: submissionId || null,
+            createdAt: Date.now()
+        });
+
+        // Auto-cleanup after 5 minutes
+        setTimeout(() => {
+            global.prefillCache.delete(prefillToken);
+        }, 5 * 60 * 1000);
+
+        res.json({ prefillToken });
+    } catch (err) {
+        console.error('Create prefill session error:', err);
+        res.status(500).json({ error: 'Failed to create prefill session' });
     }
 });
 

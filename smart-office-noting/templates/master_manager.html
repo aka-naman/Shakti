@@ -286,11 +286,58 @@
                         <span class="save-indicator" id="save-{{ master.id }}" style="font-size: 10px; color: #2d7a2d; display: none;">Saved!</span>
                     </div>
                     
-                    <div id="field-map-container-{{ master.id }}" style="display: none; padding: 10px; background: #fff; border: 1px solid #c0cce0; border-radius: 6px; margin-top: 5px;">
-                        <label style="font-size: 10px; font-weight: 700;">Manual Field Mapping (JSON)</label>
-                        <p style="font-size: 9px; color: #666; margin-bottom: 5px;">Format: <code>{"Noting Column Name": "Agra-sandhani Field Label"}</code></p>
-                        <textarea id="field-map-{{ master.id }}" style="width: 100%; height: 80px; font-family: monospace; font-size: 11px; padding: 8px;" placeholder='e.g. {"Name & Design.": "Official Name"}'>{{ (master.field_map or {}) | tojson }}</textarea>
-                        <button type="button" class="btn-upload" style="margin-top: 8px; font-size: 10px;" onclick="saveFieldMap('{{ master.id }}')">Save Mapping</button>
+                    <div id="field-map-container-{{ master.id }}" style="display: none; padding: 15px; background: #fff; border: 1px solid #c0cce0; border-radius: 8px; margin-top: 10px; width: 100%;">
+                        <label style="font-size: 12px; font-weight: 700; color: #1a3c6e; display: block; margin-bottom: 5px;">Configure Field Mapping / फ़ील्ड मैपिंग</label>
+                        
+                        <!-- Tabs for Import vs Export -->
+                        <div style="display: flex; gap: 10px; margin-bottom: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">
+                            <button type="button" class="tab-btn active" id="tab-import-{{ master.id }}" onclick="switchMappingTab('{{ master.id }}', 'import')" style="border: none; background: none; font-size: 11px; font-weight: bold; color: #1a3c6e; border-bottom: 2px solid #1a3c6e; padding: 4px 8px; cursor: pointer;">
+                                📥 Import Map (Agra ➡️ Noting)
+                            </button>
+                            <button type="button" class="tab-btn" id="tab-export-{{ master.id }}" onclick="switchMappingTab('{{ master.id }}', 'export')" style="border: none; background: none; font-size: 11px; font-weight: bold; color: #666; padding: 4px 8px; cursor: pointer;">
+                                📤 Export Map (Noting ➡️ Agra)
+                            </button>
+                        </div>
+                        
+                        <!-- Import Builder -->
+                        <div id="import-builder-container-{{ master.id }}">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                                <label style="font-size: 11px; font-weight: bold; color: #1a3c6e; min-width: 80px;">Import Form:</label>
+                                <select class="agra-form-selector-import" id="import-form-select-{{ master.id }}" onchange="changeMappingFormId('{{ master.id }}', 'import', this.value)" style="font-size: 11px; padding: 4px; border-radius: 4px; flex: 1; border: 1px solid #c0cce0;">
+                                    <option value="">Loading forms...</option>
+                                </select>
+                            </div>
+                            <p style="font-size: 10px; color: #666; margin-bottom: 8px;">Define which form fields are pulled to auto-fill variables during PIS Lookup.</p>
+                            <div id="import-mapping-builder-{{ master.id }}" style="margin-bottom: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #dde3ed; padding: 8px; border-radius: 6px; background: #fbfcfe;">
+                                <div style="font-size: 11px; color: #999; font-style: italic;">Loading fields...</div>
+                            </div>
+                        </div>
+
+                        <!-- Export Builder -->
+                        <div id="export-builder-container-{{ master.id }}" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                                <label style="font-size: 11px; font-weight: bold; color: #1a3c6e; min-width: 80px;">Export Form:</label>
+                                <select class="agra-form-selector-export" id="export-form-select-{{ master.id }}" onchange="changeMappingFormId('{{ master.id }}', 'export', this.value)" style="font-size: 11px; padding: 4px; border-radius: 4px; flex: 1; border: 1px solid #c0cce0;">
+                                    <option value="">Loading forms...</option>
+                                </select>
+                            </div>
+                            <p style="font-size: 10px; color: #666; margin-bottom: 8px;">Define how fields of this noting document map to Agra-sandhani form inputs on export.</p>
+                            <div id="export-mapping-builder-{{ master.id }}" style="margin-bottom: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #dde3ed; padding: 8px; border-radius: 6px; background: #fbfcfe;">
+                                <div style="font-size: 11px; color: #999; font-style: italic;">Loading fields...</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+                            <button type="button" class="btn-action" style="background: #f3f4f6; color: #333; padding: 4px 10px;" onclick="toggleFieldMap('{{ master.id }}')">Cancel</button>
+                            <button type="button" class="btn-upload" style="margin-top: 0; padding: 4px 12px; font-size: 11px;" onclick="saveSeparateFieldMaps('{{ master.id }}')">💾 Save Mappings</button>
+                        </div>
+                        
+                        <input type="hidden" id="variables-data-{{ master.id }}" value='{{ (master.variables or []) | tojson }}'>
+                        <input type="hidden" id="nominee-columns-{{ master.id }}" value='{{ (master.nominee_columns or []) | tojson }}'>
+                        <input type="hidden" id="agra-import-form-id-{{ master.id }}" value="{{ master.agra_import_form_id or master.agra_form_id or '' }}">
+                        <input type="hidden" id="agra-export-form-id-{{ master.id }}" value="{{ master.agra_export_form_id or master.agra_form_id or '' }}">
+                        <textarea id="import-map-{{ master.id }}" style="display: none;">{{ (master.import_map or master.field_map or {}) | tojson }}</textarea>
+                        <textarea id="export-map-{{ master.id }}" style="display: none;">{{ (master.export_map or master.field_map or {}) | tojson }}</textarea>
                     </div>
                 </div>
 
@@ -405,6 +452,9 @@
     // 🚀 INTEGRATION: Agra-sandhani Discovery
     document.addEventListener('DOMContentLoaded', async () => {
         const selectors = document.querySelectorAll('.agra-form-selector');
+        const importSelectors = document.querySelectorAll('.agra-form-selector-import');
+        const exportSelectors = document.querySelectorAll('.agra-form-selector-export');
+        
         try {
             const res = await fetch('/api/agra_forms');
             const data = await res.json();
@@ -412,6 +462,7 @@
             if (data.error) throw new Error(data.error);
             const forms = data.forms || [];
             
+            // 1. Populate global default source selectors
             selectors.forEach(sel => {
                 const currentId = sel.value;
                 sel.innerHTML = '<option value="">-- No Mapping (Global Default) --</option>';
@@ -452,6 +503,27 @@
                     }
                 };
             });
+
+            // 2. Populate sub-selectors inside Mapping tab builder
+            const populateTabSelectors = (elements, inputPrefix) => {
+                elements.forEach(sel => {
+                    const masterId = sel.id.split('-').pop();
+                    const currentId = document.getElementById(inputPrefix + masterId).value;
+
+                    sel.innerHTML = '<option value="">-- Select Form --</option>';
+                    forms.forEach(f => {
+                        const opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = `${f.name} (ID: ${f.id})`;
+                        if (f.id.toString() === currentId) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                });
+            };
+
+            populateTabSelectors(importSelectors, 'agra-import-form-id-');
+            populateTabSelectors(exportSelectors, 'agra-export-form-id-');
+
         } catch (e) {
             console.error('Failed to load Agra-sandhani forms:', e);
             selectors.forEach(sel => {
@@ -462,33 +534,242 @@
         }
     });
 
-    function toggleFieldMap(masterId) {
-        const el = document.getElementById('field-map-container-' + masterId);
-        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    window.notingColumns = window.notingColumns || {};
+
+    function switchMappingTab(masterId, type) {
+        const importBtn = document.getElementById('tab-import-' + masterId);
+        const exportBtn = document.getElementById('tab-export-' + masterId);
+        const importContainer = document.getElementById('import-builder-container-' + masterId);
+        const exportContainer = document.getElementById('export-builder-container-' + masterId);
+        
+        if (type === 'import') {
+            importBtn.style.color = '#1a3c6e';
+            importBtn.style.borderBottom = '2px solid #1a3c6e';
+            exportBtn.style.color = '#666';
+            exportBtn.style.borderBottom = 'none';
+            importContainer.style.display = 'block';
+            exportContainer.style.display = 'none';
+        } else {
+            exportBtn.style.color = '#1a3c6e';
+            exportBtn.style.borderBottom = '2px solid #1a3c6e';
+            importBtn.style.color = '#666';
+            importBtn.style.borderBottom = 'none';
+            importContainer.style.display = 'none';
+            exportContainer.style.display = 'block';
+        }
     }
 
-    async function saveFieldMap(masterId) {
-        const textarea = document.getElementById('field-map-' + masterId);
-        let mapping;
-        try {
-            mapping = JSON.parse(textarea.value);
-        } catch (e) {
-            alert('Invalid JSON format. Please check your mapping.');
-            return;
+    function changeMappingFormId(masterId, type, formId) {
+        document.getElementById(`agra-${type}-form-id-${masterId}`).value = formId;
+        renderMappingUI(masterId);
+    }
+
+    async function toggleFieldMap(masterId) {
+        const el = document.getElementById('field-map-container-' + masterId);
+        const isOpening = el.style.display === 'none';
+        el.style.display = isOpening ? 'block' : 'none';
+        
+        if (isOpening) {
+            // Default to import tab on open
+            switchMappingTab(masterId, 'import');
+
+            // 🧠 Load columns list dynamically for this specific master
+            const legacyDefaults = {
+                "master_tbrl_001": ["PIS n.", "Name & Design.", "Gen.", "DOB", "Cont.No.", "DRONA Email ID", "Qualification", "Key Function Area"],
+                "master_tbrl_002": ["Name & Design.", "Lecture Topic", "Place & Date", "Phone No.", "Internet & DRONA Email"],
+                "master_tbrl_003": ["PIS n.", "Name & Design.", "Course Title", "DRONA Email ID", "Cont.No.", "Key Function Area", "Period", "Qualification/Gen/DOB"],
+                "master_tbrl_004": ["PIS n.", "Name & Design.", "Course Title", "Org. Institute", "Period", "FEE", "DRONA Email ID/Cont.No."],
+                "master_tbrl_005": ["PIS n.", "Name & Design.", "Course Title", "Date", "Qualification/DOB/Venue", "DRONA Email ID/Cont.No", "Key Function Area/Fee"]
+            };
+
+            let columns = [];
+            try {
+                columns = JSON.parse(document.getElementById('nominee-columns-' + masterId).value || '[]');
+            } catch(e) {}
+            
+            if (columns.length === 0) {
+                columns = legacyDefaults[masterId] || ["PIS n.", "Name & Design.", "DRONA Email ID", "Cont.No."];
+            }
+
+            // Load current mappings to extract any custom mapped columns
+            const currentImportMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+            const currentExportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+            const currentMappedKeys = [...Object.keys(currentImportMap), ...Object.keys(currentExportMap)];
+
+            // Store uniquely in global registry
+            window.notingColumns[masterId] = Array.from(new Set([...columns, ...currentMappedKeys]));
+
+            // Render mapping lists
+            renderMappingUI(masterId);
         }
+    }
+
+    async function renderMappingUI(masterId) {
+        const agraImportId = document.getElementById('agra-import-form-id-' + masterId).value;
+        const agraExportId = document.getElementById('agra-export-form-id-' + masterId).value;
+        const columns = window.notingColumns[masterId] || [];
+
+        const currentImportMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+        const currentExportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+
+        const fetchAndRender = async (agraFormId, mapType, currentMap) => {
+            const builderEl = document.getElementById(`${mapType}-mapping-builder-${masterId}`);
+            if (!agraFormId) {
+                builderEl.innerHTML = `
+                    <div style="font-size: 11px; color: #888; padding: 12px; background: #f9f9f9; border-radius: 4px; border: 1px dashed #ccc; text-align: center;">
+                        ⚠️ Please select a form above to load fields.
+                    </div>
+                `;
+                return;
+            }
+            try {
+                const res = await fetch(`/api/agra_form_fields/${agraFormId}`);
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+                const fields = data.fields || [];
+                
+                let html = `
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #dde3ed; background: #f0f4ff;">
+                                <th style="padding: 6px 6px; color: #1a3c6e; width: 45%;">Noting Field / Column</th>
+                                <th style="padding: 6px 6px; color: #1a3c6e; width: 50%;">Agra-sandhani Form Field</th>
+                                <th style="padding: 6px 6px; width: 5%; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                columns.forEach(v => {
+                    const mappedValue = currentMap[v] || '';
+                    html += `
+                        <tr style="border-bottom: 1px solid #f0f2f5;">
+                            <td style="padding: 6px 6px; font-weight: 600; color: #333;">${v}</td>
+                            <td style="padding: 4px 6px;">
+                                <select class="map-dropdown-${mapType}-${masterId}" data-noting-var="${v}" style="width: 100%; padding: 4px; font-size: 11px; border-radius: 4px; border: 1px solid #dde3ed; background: #fff;">
+                                    <option value="">-- Unmapped --</option>
+                                    ${fields.map(f => `
+                                        <option value="${f.label}" ${f.label === mappedValue ? 'selected' : ''}>
+                                            ${f.label} (${f.type})
+                                        </option>
+                                    `).join('')}
+                                </select>
+                            </td>
+                            <td style="padding: 4px 6px; text-align: center;">
+                                <button type="button" onclick="removeColumnFromMapping('${masterId}', '${v}')" style="background: none; border: none; color: #cc3333; cursor: pointer; font-size: 13px; font-weight: bold;" title="Remove Column">×</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                html += `
+                        <tr style="background: #fbfcfe; border-top: 1px solid #dde3ed;">
+                            <td style="padding: 8px 6px;" colspan="2">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="new-col-input-${mapType}-${masterId}" placeholder="Add custom column (e.g., Blood Group)" style="flex: 1; padding: 4px 6px; font-size: 11px; border: 1px solid #dde3ed; border-radius: 4px;">
+                                    <button type="button" class="btn-upload" onclick="addNewColumnToMapping('${masterId}', '${mapType}')" style="margin-top: 0; padding: 4px 10px; font-size: 11px; background: #e0edf5; color: #1a3c6e; border: none;">➕ Add</button>
+                                </div>
+                            </td>
+                            <td></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                `;
+                builderEl.innerHTML = html;
+            } catch (e) {
+                builderEl.innerHTML = `
+                    <div style="font-size: 11px; color: #cc3333; padding: 10px; background: #fff0f0; border-radius: 4px; border: 1px solid #ffcccc;">
+                        ⚠️ Failed to fetch form fields: ${e.message}
+                    </div>
+                `;
+            }
+        };
+
+        await fetchAndRender(agraImportId, 'import', currentImportMap);
+        await fetchAndRender(agraExportId, 'export', currentExportMap);
+    }
+
+    function addNewColumnToMapping(masterId, mapType) {
+        const input = document.getElementById(`new-col-input-${mapType}-${masterId}`);
+        const colName = input.value.trim();
+        if (!colName) return;
+        
+        window.notingColumns[masterId] = window.notingColumns[masterId] || [];
+        if (!window.notingColumns[masterId].includes(colName)) {
+            window.notingColumns[masterId].push(colName);
+        }
+        
+        input.value = '';
+        renderMappingUI(masterId);
+    }
+
+    function removeColumnFromMapping(masterId, colName) {
+        if (!confirm(`Are you sure you want to remove "${colName}" from the mapping list?`)) return;
+        
+        window.notingColumns[masterId] = window.notingColumns[masterId] || [];
+        window.notingColumns[masterId] = window.notingColumns[masterId].filter(c => c !== colName);
+        
+        const importMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+        const exportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+        delete importMap[colName];
+        delete exportMap[colName];
+        
+        document.getElementById('import-map-' + masterId).value = JSON.stringify(importMap);
+        document.getElementById('export-map-' + masterId).value = JSON.stringify(exportMap);
+        
+        renderMappingUI(masterId);
+    }
+ 
+    async function saveSeparateFieldMaps(masterId) {
+        const importDropdowns = document.querySelectorAll(`.map-dropdown-import-${masterId}`);
+        const exportDropdowns = document.querySelectorAll(`.map-dropdown-export-${masterId}`);
+        
+        const importMap = {};
+        const exportMap = {};
+        
+        importDropdowns.forEach(sel => {
+            const v = sel.getAttribute('data-noting-var');
+            const targetField = sel.value;
+            if (targetField) importMap[v] = targetField;
+        });
+
+        exportDropdowns.forEach(sel => {
+            const v = sel.getAttribute('data-noting-var');
+            const targetField = sel.value;
+            if (targetField) exportMap[v] = targetField;
+        });
+
+        const nomineeColumns = window.notingColumns[masterId] || [];
+        const agraImportId = document.getElementById('agra-import-form-id-' + masterId).value;
+        const agraExportId = document.getElementById('agra-export-form-id-' + masterId).value;
 
         try {
             const response = await fetch('/masters/update_mapping', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ master_id: masterId, field_map: mapping })
+                body: JSON.stringify({ 
+                    master_id: masterId, 
+                    import_map: importMap,
+                    export_map: exportMap,
+                    nominee_columns: nomineeColumns,
+                    agra_import_form_id: agraImportId,
+                    agra_export_form_id: agraExportId
+                })
             });
             
             if (response.ok) {
                 const indicator = document.getElementById('save-' + masterId);
                 indicator.style.display = 'inline';
                 setTimeout(() => indicator.style.display = 'none', 2000);
+                
+                document.getElementById('import-map-' + masterId).value = JSON.stringify(importMap);
+                document.getElementById('export-map-' + masterId).value = JSON.stringify(exportMap);
+                document.getElementById('nominee-columns-' + masterId).value = JSON.stringify(nomineeColumns);
+                
                 toggleFieldMap(masterId);
+            } else {
+                alert('Failed to save mapping');
             }
         } catch (e) {
             alert('Error updating mapping: ' + e.message);

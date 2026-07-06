@@ -10,12 +10,12 @@
   --error-color-rgb: 239, 68, 68;
 
   /* Colors */
-  --bg-primary: #000000;
-  --bg-secondary: #121212;
-  --bg-card: rgba(18, 18, 18, 0.7);
-  --bg-card-hover: rgba(25, 25, 25, 0.8);
-  --bg-input: rgba(10, 10, 10, 0.8);
-  --bg-overlay: rgba(0, 0, 0, 0.8);
+  --bg-primary: #0a0f1d;
+  --bg-secondary: #131b2e;
+  --bg-card: rgba(22, 31, 54, 0.75);
+  --bg-card-hover: rgba(30, 41, 73, 0.85);
+  --bg-input: rgba(13, 20, 38, 0.9);
+  --bg-overlay: rgba(5, 7, 15, 0.85);
 
   --accent-primary: #d4af37;
   --accent-primary-hover: #f9d976;
@@ -25,17 +25,17 @@
   --accent-success: #27ae60;
   --accent-warning: #f1c40f;
 
-  --text-primary: #f5f5f5;
-  --text-secondary: #b0b0b0;
-  --text-muted: #707070;
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
   --text-on-accent: #000000;
 
-  --border-color: rgba(212, 175, 55, 0.2);
-  --border-focus: rgba(212, 175, 55, 0.6);
+  --border-color: rgba(212, 175, 55, 0.35);
+  --border-focus: rgba(212, 175, 55, 0.8);
 
   --gradient-primary: linear-gradient(135deg, #d4af37, #f9d976);
   --gradient-secondary: linear-gradient(135deg, #c5a021, #d4af37);
-  --gradient-bg: linear-gradient(180deg, #000000 0%, #121212 100%);
+  --gradient-bg: linear-gradient(180deg, #0a0f1d 0%, #131b2e 100%);
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.6);
@@ -2161,6 +2161,92 @@ textarea.form-input {
 .dropdown-item.active {
   background: var(--accent-primary) !important;
   color: white !important;
+}
+
+/* Pagination Bar */
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(13, 17, 23, 0.8);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.pagination-info {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.page-numbers {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.pagination-controls .btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════
+   MUI COMPONENTS HIGH CONTRAST THEMING
+   ═══════════════════════════════════════ */
+.MuiInputBase-root,
+.MuiInputBase-input,
+.MuiOutlinedInput-input,
+input.MuiInputBase-input {
+  color: var(--text-primary) !important;
+  background-color: transparent !important;
+}
+
+.MuiFormLabel-root,
+.MuiInputLabel-root {
+  color: var(--text-secondary) !important;
+}
+
+.MuiFormLabel-root.Mui-focused,
+.MuiInputLabel-root.Mui-focused {
+  color: var(--accent-primary) !important;
+}
+
+.MuiOutlinedInput-root {
+  background-color: var(--bg-input) !important;
+}
+
+.MuiOutlinedInput-notchedOutline {
+  border-color: var(--border-color) !important;
+}
+
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: var(--accent-primary-hover) !important;
+}
+
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: var(--border-focus) !important;
+}
+
+/* Chrome Autofill fix for dark theme */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--bg-input) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 

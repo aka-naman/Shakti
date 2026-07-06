@@ -4,6 +4,31 @@ const { authenticate, checkFormAccess, checkFormOwnership } = require('../middle
 
 const router = express.Router({ mergeParams: true });
 
+// GET /api/forms/:formId/versions/latest/fields
+router.get('/:formId/versions/latest/fields', authenticate, async (req, res) => {
+    try {
+        const access = await checkFormAccess(req.params.formId, req.user.id, req.user.role);
+        if (!access.exists) return res.status(404).json({ error: 'Form not found' });
+        if (!access.hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+        const result = await pool.query(
+            `SELECT * FROM form_fields 
+             WHERE form_version_id = (
+                SELECT id FROM form_versions 
+                WHERE form_id = $1 
+                ORDER BY version_number DESC 
+                LIMIT 1
+             ) 
+             ORDER BY field_order`,
+            [req.params.formId]
+        );
+        res.json({ fields: result.rows });
+    } catch (err) {
+        console.error('Get latest fields error:', err);
+        res.status(500).json({ error: 'Failed to get fields' });
+    }
+});
+
 // GET /api/forms/:formId/versions/:versionId/fields
 router.get('/:formId/versions/:versionId/fields', authenticate, async (req, res) => {
     try {

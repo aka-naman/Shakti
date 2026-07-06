@@ -7,6 +7,7 @@
         "enabled": true,
         "master_form_id": 23,
         "pis_label": "PIS no.",
-        "agra_api_url": "http://localhost:5000/api/service/lookup"
+        "agra_api_url": "http://127.0.0.1:5000/api/service/lookup",
+        "cleanup_days": 30
     }
 }

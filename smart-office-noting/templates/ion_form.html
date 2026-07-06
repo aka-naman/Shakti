@@ -265,7 +265,8 @@
 </div>
 
 <div class="container">
-    <input type="hidden" id="agra_form_id" value="{{ agra_form_id }}">
+    <input type="hidden" id="agra_import_form_id" value="{{ agra_import_form_id }}">
+    <input type="hidden" id="agra_export_form_id" value="{{ agra_export_form_id }}">
     <form action="/preview" method="POST" id="noticeForm" novalidate>
 
         <div class="master-card">
@@ -405,14 +406,18 @@
             <p class="selected-count">Selected: <span id="count">0</span> departments</p>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:15px;">
             <button type="submit" formaction="/preview" class="btn-preview">
                 👁 Preview Notice
             </button>
             <button type="submit" formaction="/generate" class="btn-download">
                 📄 Download Directly
             </button>
+            <button type="button" id="exportToFormBtn" class="btn-download" style="background: #1a3c6e;">
+                📤 Export to Form
+            </button>
         </div>
+        <input type="hidden" id="agra_form_id" value="{{ agra_form_id or '' }}">
         <br>
 
     </form> <div class="card">
@@ -525,6 +530,28 @@
         if (cb.checked) cb.closest('.dept-item').classList.add('checked');
     });
     updateCount();
+
+    // Initialize PIS Bridge for Export capability
+    document.addEventListener('DOMContentLoaded', () => {
+        const importMap = JSON.parse('{{ import_map | safe }}' || '{}');
+        const exportMap = JSON.parse('{{ export_map | safe }}' || '{}');
+        const importFormId = '{{ agra_import_form_id or "" }}';
+        const exportFormId = '{{ agra_export_form_id or "" }}';
+        if (typeof PISBridge !== 'undefined') {
+            PISBridge.init({ 
+                importMap: importMap,
+                exportMap: exportMap,
+                agraImportFormId: importFormId,
+                agraExportFormId: exportFormId
+            });
+        }
+        
+        document.getElementById('exportToFormBtn').addEventListener('click', () => {
+            if (typeof PISBridge !== 'undefined') {
+                PISBridge.exportToForm();
+            }
+        });
+    });
 </script>
 
 </body>

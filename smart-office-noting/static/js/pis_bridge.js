@@ -8,9 +8,14 @@ const PISBridge = {
     // Configuration
     pisKeywords: ['pis', 'personnel', 'emp id', 'fax', 'roll no', 'id'],
     debounceTimer: null,
+    searchAbortController: null,
     config: {
-        fieldMap: {},
+        fieldMap: {},    // Legacy fallback
+        importMap: {},   // Maps: Noting Field -> Agra Field (For Lookup)
+        exportMap: {},   // Maps: Noting Field -> Agra Field (For Export)
         agraFormId: '',
+        agraImportFormId: '', // Form ID to import from
+        agraExportFormId: '', // Form ID to export to
         statusId: null
     },
     
@@ -18,12 +23,31 @@ const PISBridge = {
      * Initializes the bridge with specific settings
      */
     init: function(options) {
+        console.log('[PIS Bridge] Initializing with options:', options);
         this.config = { ...this.config, ...options };
+        
+        // Setup separate Form IDs
+        if (!this.config.agraImportFormId) {
+            this.config.agraImportFormId = this.config.agraFormId;
+        }
+        if (!this.config.agraExportFormId) {
+            this.config.agraExportFormId = this.config.agraFormId;
+        }
+        
+        // Dynamic fallbacks for backward compatibility
+        if (Object.keys(this.config.importMap || {}).length === 0) {
+            this.config.importMap = this.config.fieldMap || {};
+        }
+        if (Object.keys(this.config.exportMap || {}).length === 0) {
+            this.config.exportMap = this.config.fieldMap || {};
+        }
+        
         this.checkHealth();
         
         // If we are on a plain form (not a table-based noting), auto-attach to inputs
         const dynamicForm = document.getElementById('template-generation-form');
         if (dynamicForm) {
+            console.log('[PIS Bridge] Detected Dynamic Form, scanning fields...');
             this.attachToPlainForm(dynamicForm);
         }
     },
@@ -41,18 +65,20 @@ const PISBridge = {
         try {
             const res = await fetch('/api/agra_forms');
             const data = await res.json();
-            if (data.error) throw new Error(data.error);
             
-            const form = data.forms.find(f => f.id.toString() === this.config.agraFormId);
+            const form = data.forms?.find(f => f.id.toString() === this.config.agraFormId);
             if (form) {
+                console.log('[PIS Bridge] Connected to Agra Form:', form.name);
                 dot.style.background = '#2d7a2d';
                 text.textContent = `Connected: ${form.name}`;
                 statusEl.style.color = '#2d7a2d';
             } else {
+                console.warn('[PIS Bridge] Form ID not found in Agra list:', this.config.agraFormId);
                 dot.style.background = '#f0c040';
                 text.textContent = `Using Global Default (ID: ${this.config.agraFormId || '23'})`;
             }
         } catch (e) {
+            console.error('[PIS Bridge] Connection failed:', e);
             dot.style.background = '#cc3333';
             text.textContent = 'Agra-sandhani Offline';
             statusEl.style.color = '#cc3333';
@@ -77,8 +103,8 @@ const PISBridge = {
         // 0. Explicitly exclude data-only fields that might contain trigger keywords
         if (normalizedName.includes('email') || normalizedName.includes('drona')) return false;
 
-        // 1. Check explicit map entries - if it's in the map, it CAN be a trigger
-        const mapKeys = Object.keys(this.config.fieldMap || {});
+        // 1. Check explicit map entries - if it's in the importMap, it CAN be a trigger
+        const mapKeys = Object.keys(this.config.importMap || {});
         for (let key of mapKeys) {
             const normalizedKey = key.toLowerCase().replace(/_/g, ' ').trim();
             if (normalizedKey === normalizedName) return true;
@@ -95,32 +121,79 @@ const PISBridge = {
     },
 
     /**
-     * Finds the best value to fill into a specific column from fetched data
+     * Finds the best value to fill into a specific input based on configuration
+     * This is the "Engine" that powers the dynamic mapping from Master Manager
      */
     getBestValueForCol: function(colName, fetchedData) {
         if (!fetchedData || !fetchedData.data) return null;
         const data = fetchedData.data;
-        const lowerCol = colName.toLowerCase().replace(/\./g, '');
         
-        // 1. Explicit map
-        const explicit = this.config.fieldMap || {};
-        if (explicit[colName] && data[explicit[colName]]) return data[explicit[colName]];
+        // Normalize the input name/ID (e.g., "FAX_NO" or "fax no" -> "faxno")
+        const normalize = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const target = normalize(colName);
+        
+        const explicitMap = this.config.importMap || {};
 
-        // 2. Fuzzy match in suggested mapping
-        const suggested = fetchedData.suggested_mapping || {};
-        
-        // Special case for PIS: if column looks like PIS/ID
-        if (lowerCol.includes('pis') || lowerCol.includes('id') || lowerCol.includes('token')) {
-            if (suggested.pis && data[suggested.pis]) return data[suggested.pis];
+        // 1. Check Explicit Mapping (Priority)
+        for (const [notingVar, agraLabel] of Object.entries(explicitMap)) {
+            if (normalize(notingVar) === target) {
+                const actualAgraKey = Object.keys(data).find(k => normalize(k) === normalize(agraLabel));
+                if (actualAgraKey) {
+                    console.log(`[PIS Bridge] Mapping hit: ${notingVar} -> ${agraLabel}`);
+                    return data[actualAgraKey];
+                }
+            }
         }
 
-        for (const [key, label] of Object.entries(suggested)) {
-            if (lowerCol.includes(key)) return data[label];
+        // 2. Exact/Normalized Direct Match
+        const directMatch = Object.keys(data).find(k => normalize(k) === target);
+        if (directMatch) {
+            console.log(`[PIS Bridge] Direct hit: ${colName}`);
+            return data[directMatch];
         }
 
-        // 3. Exact key match
-        for (const key of Object.keys(data)) {
-            if (key.toLowerCase() === lowerCol) return data[key];
+        // 3. Fuzzy Compound Matching (e.g., "Name & Design." contains "Name")
+        // Also handle "Qualification/DOB/Venue" matching "DOB"
+        const agraKeys = Object.keys(data);
+        
+        // Handle multi-value columns (e.g., "Name & Design" or "Email / Mobile")
+        if (colName.includes('&') || colName.includes('/') || colName.toLowerCase().includes(' and ')) {
+            const parts = colName.split(/[&/]| and /i).map(p => normalize(p));
+            let combinedValues = [];
+            
+            parts.forEach(part => {
+                if (part.length < 2) return;
+                const match = agraKeys.find(k => {
+                    const nk = normalize(k);
+                    return nk === part || (nk.length > 3 && (part.includes(nk) || nk.includes(part)));
+                });
+                if (match && data[match]) combinedValues.push(data[match]);
+            });
+            
+            if (combinedValues.length > 0) {
+                console.log(`[PIS Bridge] Multi-match hit for ${colName}:`, combinedValues);
+                return combinedValues.join(' / ');
+            }
+        }
+
+        for (const key of agraKeys) {
+            const normKey = normalize(key);
+            if (normKey.length < 3) continue; // Skip very short keys to avoid false positives
+
+            // If the noting column contains the Agra key as a word or segment
+            // e.g., "namedesign" contains "name" or "design"
+            if (target.includes(normKey) || normKey.includes(target)) {
+                console.log(`[PIS Bridge] Fuzzy hit: ${colName} matches ${key}`);
+                return data[key];
+            }
+        }
+
+        // 4. Special cases for common noting columns
+        if (target.includes('namedesign')) {
+            const nameKey = agraKeys.find(k => normalize(k) === 'name');
+            const desigKey = agraKeys.find(k => normalize(k).includes('desig') || normalize(k).includes('rank'));
+            if (nameKey && desigKey) return `${data[nameKey]} / ${data[desigKey]}`;
+            if (nameKey) return data[nameKey];
         }
 
         return null;
@@ -129,128 +202,138 @@ const PISBridge = {
     /**
      * Fetches data for a given PIS/Trigger number (Full Record)
      */
-    fetchData: async function(pisValue) {
+    fetchData: async function(pisValue, bypassCache = false) {
         if (!pisValue || pisValue.trim() === '') return null;
         
-        const cacheKey = `pis_cache_${this.config.agraFormId}_${pisValue.trim()}`;
-        const cached = sessionStorage.getItem(cacheKey);
-        if (cached) return JSON.parse(cached);
+        const formId = this.config.agraImportFormId || this.config.agraFormId;
+        const cacheKey = `pis_cache_${formId}_${pisValue.trim()}`;
         
-        const formId = this.config.agraFormId;
+        if (!bypassCache) {
+            const cachedEntry = sessionStorage.getItem(cacheKey);
+            if (cachedEntry) {
+                try {
+                    const parsed = JSON.parse(cachedEntry);
+                    // Handle both old format (direct data) and new format ({data, timestamp})
+                    const data = parsed.data || parsed;
+                    const timestamp = parsed.timestamp || 0;
+                    
+                    const ttl = 10 * 60 * 1000; // 10 minutes TTL
+                    if (Date.now() - timestamp < ttl) {
+                        console.log('[PIS Bridge] Serving from cache:', pisValue);
+                        return data;
+                    }
+                } catch (e) {
+                    sessionStorage.removeItem(cacheKey);
+                }
+            }
+        }
+
+        console.log('[PIS Bridge] Fetching from API:', pisValue);
         
         try {
             const url = `/api/fetch_pis?pis=${encodeURIComponent(pisValue.trim())}${formId ? '&formId=' + formId : ''}`;
             const response = await fetch(url);
-            if (!response.ok) return null;
+            if (!response.ok) {
+                console.error('[PIS Bridge] Fetch failed:', response.status);
+                return null;
+            }
             const data = await response.json();
+            console.log('[PIS Bridge] Data received');
             
-            // Cache for session
-            sessionStorage.setItem(cacheKey, JSON.stringify(data));
+            // Cache for session with timestamp
+            const entry = { data: data, timestamp: Date.now() };
+            sessionStorage.setItem(cacheKey, JSON.stringify(entry));
             return data;
         } catch (error) {
-            console.error('PIS Bridge Error:', error);
+            console.error('[PIS Bridge] Fetch error:', error);
             return null;
         }
     },
 
-    /**
-     * Searches for PIS/Trigger numbers (Autocomplete)
-     */
     searchPIS: async function(query) {
         if (!query || query.length < 2) return [];
+        console.log('[PIS Bridge] Searching for:', query);
 
-        const formId = this.config.agraFormId;
+        // Abort previous search request if still running
+        if (this.searchAbortController) {
+            try {
+                this.searchAbortController.abort();
+            } catch(e) {}
+        }
+        this.searchAbortController = new AbortController();
+
+        const formId = this.config.agraImportFormId || this.config.agraFormId;
 
         try {
             const url = `/api/search_pis?query=${encodeURIComponent(query)}${formId ? '&formId=' + formId : ''}`;
-            const response = await fetch(url);
+            const response = await fetch(url, { signal: this.searchAbortController.signal });
+            if (!response.ok) {
+                console.error('[PIS Bridge] Search API failed:', response.status);
+                return [];
+            }
             const data = await response.json();
+            console.log(`[PIS Bridge] Search returned ${data.results?.length || 0} results`);
             return data.results || [];
         } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('[PIS Bridge] Search request aborted');
+            } else {
+                console.error('[PIS Bridge] Search error:', error);
+            }
             return [];
         }
     },
 
     /**
-     * Auto-fills a plain form (non-table)
+     * Auto-fills a plain form (Dynamic Form or Standard Form)
      */
-    fillPlainForm: function(fetchedData) {
+    fillPlainForm: function(fetchedData, triggerFieldKey = null) {
         if (!fetchedData || !fetchedData.data) return;
-        const data = fetchedData.data;
-        const explicit = this.config.fieldMap || {};
+        
+        // Find all inputs in the active form container or globally if not found
+        let container = document.getElementById('template-generation-form') || 
+                        document.getElementById('notingForm') || 
+                        document.querySelector('.form-container') || 
+                        document.body;
 
-        Object.entries(explicit).forEach(([notingVar, agraLabel]) => {
-            // notingVar might contain spaces or be uppercase, e.g. "FAX NO"
-            // The input ID is usually the variable name, e.g. "FAX_NO" or "FAX NO"
-            // We search by ID or name
-            const input = document.getElementById(notingVar) || 
-                          document.getElementById(notingVar.replace(/ /g, '_')) ||
-                          document.querySelector(`[name="${notingVar}"]`);
-            
-            if (input && !this.isTriggerField(notingVar)) {
-                const foundValue = data[agraLabel];
-                if (foundValue) {
-                    input.value = foundValue;
-                    input.style.backgroundColor = '#e6fffa';
-                    setTimeout(() => { input.style.backgroundColor = ''; }, 2000);
-                }
+        const inputs = container.querySelectorAll('input[type="text"], input[type="date"], textarea');
+        
+        inputs.forEach(input => {
+            const varName = input.id || input.name;
+            if (!varName) return;
+
+            // Skip the field the user is currently typing in
+            if (triggerFieldKey && this.getMapKeyForInput(input) === triggerFieldKey) return;
+
+            const val = this.getBestValueForCol(varName, fetchedData);
+            if (val !== null && val !== undefined) {
+                input.value = val;
+                // Trigger change event for any listeners
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.style.backgroundColor = '#e6fffa';
+                setTimeout(() => { input.style.backgroundColor = ''; }, 2000);
             }
         });
     },
 
     /**
-     * Auto-fills a row in a table based on fetched data
+     * Auto-fills a row in a table (Standard Noting)
      */
-    fillRow: function(rowIndex, fetchedData) {
+    fillRow: function(rowIndex, fetchedData, triggerColName = null) {
         if (!fetchedData || !fetchedData.data) return;
-
-        const data = fetchedData.data;
-        const suggested = fetchedData.suggested_mapping || {};
-        const explicit = this.config.fieldMap || {};
         
         const rowInputs = document.querySelectorAll(`.nominee-cell-input[data-row="${rowIndex}"]`);
         
         rowInputs.forEach(input => {
             const colName = input.getAttribute('data-col');
-            if (this.isTriggerField(colName)) return;
+            if (!colName) return;
 
-            const lowerCol = colName.toLowerCase();
-            let foundValue = null;
+            // Skip the active trigger column
+            if (triggerColName && colName === triggerColName) return;
 
-            // 1. Priority: Explicit Mapping (User defined)
-            if (explicit[colName]) {
-                foundValue = data[explicit[colName]];
-            }
-
-            // 2. Secondary: Fuzzy Mapping from Backend
-            if (!foundValue) {
-                for (const [key, label] of Object.entries(suggested)) {
-                    if (lowerCol.includes(key)) {
-                        foundValue = data[label];
-                        break;
-                    }
-                }
-            }
-
-            // 3. Fallback: Standard Keywords
-            if (!foundValue) {
-                if (lowerCol.includes('name')) foundValue = data[suggested.name];
-                if (lowerCol.includes('desig')) {
-                    const desigVal = data[suggested.designation];
-                    if (desigVal) {
-                        if (lowerCol.includes('name') && foundValue) foundValue = `${foundValue}, ${desigVal}`;
-                        else foundValue = desigVal;
-                    }
-                }
-                else if (lowerCol.includes('gen')) foundValue = data[suggested.gender];
-                else if (lowerCol.includes('dob')) foundValue = data[suggested.dob];
-                else if (lowerCol.includes('email') || lowerCol.includes('drona')) foundValue = data[suggested.email];
-                else if (lowerCol.includes('cont') || lowerCol.includes('mobile') || lowerCol.includes('phone')) foundValue = data[suggested.mobile];
-                else if (lowerCol.includes('quali')) foundValue = data[suggested.qualification];
-            }
-
-            if (foundValue) {
-                input.value = foundValue;
+            const val = this.getBestValueForCol(colName, fetchedData);
+            if (val !== null && val !== undefined) {
+                input.value = val;
                 input.style.backgroundColor = '#e6fffa';
                 setTimeout(() => { input.style.backgroundColor = ''; }, 2000);
             }
@@ -263,6 +346,7 @@ const PISBridge = {
     getGlobalList: function() {
         let list = document.getElementById('global-pis-autocomplete');
         if (!list) {
+            console.log('[PIS Bridge] Creating global list element');
             list = document.createElement('div');
             list.id = 'global-pis-autocomplete';
             list.style.cssText = `
@@ -295,13 +379,29 @@ const PISBridge = {
      * Attaches to a plain form (non-table)
      */
     attachToPlainForm: function(form) {
-        const inputs = form.querySelectorAll('input[type="text"], textarea');
+        console.log('[PIS Bridge] Scanning form for trigger fields...');
+        const inputs = form.querySelectorAll('input[type="text"], input[type="date"], textarea');
         inputs.forEach(input => {
             const varName = input.id || input.name;
             if (this.isTriggerField(varName)) {
+                console.log(`[PIS Bridge] Attaching to field: ${varName}`);
                 this.attachToInput(input, true);
             }
         });
+    },
+
+    /**
+     * Resolves the actual key from fieldMap that matches an input
+     */
+    getMapKeyForInput: function(input) {
+        const name = input.getAttribute('data-col') || input.id || input.name;
+        if (!name) return null;
+        const normalize = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+        const target = normalize(name);
+        
+        const mapKeys = Object.keys(this.config.importMap || {});
+        // Try to find the exact key used in the map
+        return mapKeys.find(key => normalize(key) === target) || name;
     },
 
     /**
@@ -310,9 +410,10 @@ const PISBridge = {
      * @param {Boolean} isPlainForm If true, fills the whole form instead of a row
      */
     attachToInput: function(input, isPlainForm = false) {
+        const self = this; // Capture context for event handlers
         input.classList.add('pis-input');
         const rowIndex = input.getAttribute('data-row');
-        const list = this.getGlobalList();
+        const list = self.getGlobalList();
 
         const positionList = () => {
             const rect = input.getBoundingClientRect();
@@ -324,15 +425,17 @@ const PISBridge = {
 
         const triggerSearch = async () => {
             const query = input.value;
+            console.log('[PIS Bridge] Triggering search for:', query);
             
             if (query.length < 2) {
                 list.style.display = 'none';
                 return;
             }
 
-            const results = await this.searchPIS(query);
+            const results = await self.searchPIS(query);
 
             if (results.length > 0) {
+                console.log('[PIS Bridge] Displaying results list');
                 list.innerHTML = results.map(r => `
                     <div class="pis-item" style="padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; background: #fff;" 
                          onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background='#fff'">
@@ -348,39 +451,41 @@ const PISBridge = {
                     items[idx].onclick = async (ev) => {
                         ev.stopPropagation();
                         ev.preventDefault();
+                        console.log('[PIS Bridge] Selected item:', r.pis);
                         
                         // 1. Clear autocomplete
                         list.style.display = 'none';
                         
                         // 2. Fetch full record
-                        const fullResult = await this.fetchData(r.pis);
+                        const fullResult = await self.fetchData(r.pis);
                         if (!fullResult) {
                             input.value = r.pis;
                             return;
                         }
 
                         // 3. Context-aware value injection
-                        // Find what SHOULD go into the current input box based on its column name
                         const colName = input.getAttribute('data-col') || input.id || input.name;
-                        const contextValue = this.getBestValueForCol(colName, fullResult);
+                        const triggerKey = self.getMapKeyForInput(input);
+                        const contextValue = self.getBestValueForCol(colName, fullResult);
                         
                         input.value = contextValue || r.pis;
 
                         // 4. Fill the rest of the form/row
-                        if (isPlainForm) this.fillPlainForm(fullResult);
-                        else this.fillRow(rowIndex, fullResult);
+                        if (isPlainForm) self.fillPlainForm(fullResult, triggerKey);
+                        else self.fillRow(rowIndex, fullResult, colName);
                         
                         input.focus();
                     };
                 });
             } else {
+                console.log('[PIS Bridge] No results found to show');
                 list.style.display = 'none';
             }
         };
 
         input.addEventListener('input', () => {
-            clearTimeout(this.debounceTimer);
-            this.debounceTimer = setTimeout(triggerSearch, 300);
+            clearTimeout(self.debounceTimer);
+            self.debounceTimer = setTimeout(triggerSearch, 300);
         });
 
         input.addEventListener('focus', () => {
@@ -391,15 +496,15 @@ const PISBridge = {
             // Wait slightly to see if we clicked an autocomplete item instead
             setTimeout(async () => {
                 if (list.style.display === 'none' && input.value.length >= 2) {
-                    const result = await this.fetchData(input.value);
+                    const result = await self.fetchData(input.value);
                     if (result) {
-                        // Context-aware value correction for the current input
                         const colName = input.getAttribute('data-col') || input.id || input.name;
-                        const contextValue = this.getBestValueForCol(colName, result);
+                        const triggerKey = self.getMapKeyForInput(input);
+                        const contextValue = self.getBestValueForCol(colName, result);
                         if (contextValue) input.value = contextValue;
 
-                        if (isPlainForm) this.fillPlainForm(result);
-                        else this.fillRow(rowIndex, result);
+                        if (isPlainForm) self.fillPlainForm(result, triggerKey);
+                        else self.fillRow(rowIndex, result, colName);
                     }
                 }
             }, 250);
@@ -410,14 +515,15 @@ const PISBridge = {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 list.style.display = 'none';
-                const result = await this.fetchData(input.value);
+                const result = await self.fetchData(input.value);
                 if (result) {
                     const colName = input.getAttribute('data-col') || input.id || input.name;
-                    const contextValue = this.getBestValueForCol(colName, result);
+                    const triggerKey = self.getMapKeyForInput(input);
+                    const contextValue = self.getBestValueForCol(colName, result);
                     if (contextValue) input.value = contextValue;
 
-                    if (isPlainForm) this.fillPlainForm(result);
-                    else this.fillRow(rowIndex, result);
+                    if (isPlainForm) self.fillPlainForm(result, triggerKey);
+                    else self.fillRow(rowIndex, result, colName);
                 }
             }
         });
@@ -442,10 +548,12 @@ const PISBridge = {
             btn.innerHTML = '🔍';
             btn.onclick = async (e) => {
                 e.stopPropagation();
-                const result = await this.fetchData(input.value);
+                const result = await self.fetchData(input.value, true);
                 if (result) {
-                    if (isPlainForm) this.fillPlainForm(result);
-                    else this.fillRow(rowIndex, result);
+                    const colName = input.getAttribute('data-col') || input.id || input.name;
+                    const triggerKey = self.getMapKeyForInput(input);
+                    if (isPlainForm) self.fillPlainForm(result, triggerKey);
+                    else self.fillRow(rowIndex, result, colName);
                 }
                 else alert('PIS/ID not found');
             };
@@ -459,6 +567,100 @@ const PISBridge = {
                 }
                 parent.appendChild(btn);
             }
+        }
+    },
+
+    /**
+     * Exports noting data to Agra-sandhani by generating a prefill token session
+     * and redirecting the browser to the prefilled form.
+     * @param {Object} rowData Nominee row details (optional)
+     */
+    exportToForm: async function(rowData = null) {
+        const exportFormId = this.config.agraExportFormId || this.config.agraFormId;
+        if (!exportFormId) {
+            alert("No target Agra-sandhani form mapped to this master.");
+            return;
+        }
+
+        // 1. Gather all flat form inputs
+        const flatValues = {};
+        const container = document.getElementById('notingForm') || 
+                          document.getElementById('template-generation-form') || 
+                          document.querySelector('.form-container') || 
+                          document.body;
+        const inputs = container.querySelectorAll('input[type="text"], input[type="date"], select, textarea');
+        
+        inputs.forEach(input => {
+            const name = input.name || input.id;
+            if (name && !input.classList.contains('nominee-cell-input') && !input.classList.contains('pis-input')) {
+                flatValues[name] = input.value;
+            }
+        });
+
+        // Add special computed fields
+        const refSource = document.getElementById('ref_source')?.value;
+        const refMailDate = document.getElementById('ref_mail_date')?.value;
+        if (refSource && refMailDate) {
+            flatValues['reference_text'] = `${refSource} Dated: ${refMailDate}`;
+        }
+
+        // 2. Combine flat fields and row data
+        const mergedData = { ...flatValues };
+        if (rowData) {
+            Object.assign(mergedData, rowData);
+        }
+
+        // 3. Map Noting variables to Agra-sandhani labels using exportMap
+        const mappedPrefill = {};
+        const explicitMap = this.config.exportMap || {};
+
+        // Normalize helper
+        const normalize = (str) => String(str).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+
+        // Map values
+        Object.entries(mergedData).forEach(([notingVar, val]) => {
+            if (!val) return;
+            const targetMapKey = Object.keys(explicitMap).find(k => normalize(k) === normalize(notingVar));
+            if (targetMapKey) {
+                const agraLabel = explicitMap[targetMapKey];
+                mappedPrefill[agraLabel] = val;
+            }
+        });
+
+        console.log('[PIS Bridge] Mapped prefill data:', mappedPrefill);
+
+        if (Object.keys(mappedPrefill).length === 0) {
+            alert("None of the fields on this form are currently mapped to the target Agra-sandhani form. Please configure mapping in Master Manager first.");
+            return;
+        }
+
+        try {
+            // 4. Create prefill session on Node backend via Flask proxy
+            const response = await fetch('/api/prefill_proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    formId: exportFormId,
+                    values: mappedPrefill
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to create prefill session: ${response.statusText}`);
+            }
+
+            const sessionData = await response.json();
+            const token = sessionData.prefillToken;
+
+            // 5. Redirect browser to Agra-sandhani Form submit page with prefillToken
+            const port = 5000;
+            const agraHost = `${window.location.protocol}//${window.location.hostname}:${port}`;
+            const targetUrl = `${agraHost}/forms/${exportFormId}/submit?prefillToken=${token}`;
+
+            console.log('[PIS Bridge] Redirecting to:', targetUrl);
+            window.open(targetUrl, '_blank');
+        } catch (e) {
+            alert(`Error exporting to form: ${e.message}`);
         }
     }
 };

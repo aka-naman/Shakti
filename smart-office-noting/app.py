@@ -13,6 +13,8 @@ import shutil
 import re
 import docx
 import requests
+import threading
+import time
 from datetime import datetime
 
 import logging
@@ -91,6 +93,44 @@ def load_json(filepath, default):
         with open(filepath, "r", encoding="utf-8") as f:
             return json.load(f)
     return default
+
+def get_agra_api_url(endpoint="lookup"):
+    """Dynamically resolves the Agra-sandhani API URL."""
+    # 1. Check environment variable override
+    env_url = os.environ.get("AGRA_API_URL")
+    if env_url:
+        return env_url.replace("/lookup", f"/{endpoint}")
+        
+    # 2. Check config
+    config = load_json(CONFIG_FILE, {})
+    base_url = config.get("integration", {}).get("agra_api_url", "http://127.0.0.1:5000/api/service/lookup")
+    return base_url.replace("/lookup", f"/{endpoint}")
+
+def cleanup_task():
+    """Background task to delete old generated notices to save disk space."""
+    OUTPUT_DIR = "generated_notices"
+    while True:
+        try:
+            config = load_json(CONFIG_FILE, {})
+            days = config.get("integration", {}).get("cleanup_days", 30)
+            threshold = days * 24 * 60 * 60
+            now = time.time()
+            
+            if os.path.exists(OUTPUT_DIR):
+                count = 0
+                for f in os.listdir(OUTPUT_DIR):
+                    fpath = os.path.join(OUTPUT_DIR, f)
+                    if os.path.isfile(fpath):
+                        if now - os.path.getmtime(fpath) > threshold:
+                            os.remove(fpath)
+                            count += 1
+                if count > 0:
+                    logger.info(f"[CLEANUP] Purged {count} old generated documents.")
+        except Exception as e:
+            logger.error(f"[CLEANUP] Task failed: {str(e)}")
+            
+        # Run once every 24 hours
+        time.sleep(24 * 60 * 60)
 
 def save_json(filepath, data):
     with open(filepath, "w", encoding="utf-8") as f:
@@ -181,8 +221,10 @@ def ion_notice():
             selected_master_id = fillable_masters[0]["id"]
             
     selected_master = next((m for m in masters if m["id"] == selected_master_id), None)
-    agra_form_id = selected_master.get("agra_form_id") if selected_master else None
-    field_map = selected_master.get("field_map", {}) if selected_master else {}
+    agra_import_form_id = selected_master.get("agra_import_form_id", selected_master.get("agra_form_id")) if selected_master else None
+    agra_export_form_id = selected_master.get("agra_export_form_id", selected_master.get("agra_form_id")) if selected_master else None
+    import_map = selected_master.get("import_map", selected_master.get("field_map", {})) if selected_master else {}
+    export_map = selected_master.get("export_map", selected_master.get("field_map", {})) if selected_master else {}
             
     return render_template(
         "ion_form.html",
@@ -193,8 +235,10 @@ def ion_notice():
         defaults=defaults,
         masters=masters,
         selected_master_id=selected_master_id,
-        agra_form_id=agra_form_id,
-        field_map=json.dumps(field_map)
+        agra_import_form_id=agra_import_form_id,
+        agra_export_form_id=agra_export_form_id,
+        import_map=json.dumps(import_map),
+        export_map=json.dumps(export_map)
     )
 
 @app.route("/save-defaults", methods=["POST"])
@@ -653,11 +697,14 @@ def tbrl_noting():
     courses = ["C.E.P.", "Seminar", "Conference", "Workshop", "Training Course", "Program Course", "M.D.P.", "Lecture", "Symposim", "Conclave", "Meeting", "Short Term Course"]
     
     masters = load_masters()
+    masters = load_masters()
     master = next((m for m in masters if m["id"] == "master_tbrl_001"), None)
-    agra_form_id = master.get("agra_form_id") if master else None
-    field_map = master.get("field_map", {}) if master else {}
+    agra_import_form_id = master.get("agra_import_form_id", master.get("agra_form_id")) if master else None
+    agra_export_form_id = master.get("agra_export_form_id", master.get("agra_form_id")) if master else None
+    import_map = master.get("import_map", master.get("field_map", {})) if master else {}
+    export_map = master.get("export_map", master.get("field_map", {})) if master else {}
     
-    return render_template("tbrl_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_form_id=agra_form_id, field_map=json.dumps(field_map))
+    return render_template("tbrl_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_import_form_id=agra_import_form_id, agra_export_form_id=agra_export_form_id, import_map=json.dumps(import_map), export_map=json.dumps(export_map))
 
 @app.route("/generate-noting", methods=["POST"])
 def generate_noting():
@@ -735,10 +782,12 @@ def lecture_noting():
     
     masters = load_masters()
     master = next((m for m in masters if m["id"] == "master_tbrl_002"), None)
-    agra_form_id = master.get("agra_form_id") if master else None
-    field_map = master.get("field_map", {}) if master else {}
+    agra_import_form_id = master.get("agra_import_form_id", master.get("agra_form_id")) if master else None
+    agra_export_form_id = master.get("agra_export_form_id", master.get("agra_form_id")) if master else None
+    import_map = master.get("import_map", master.get("field_map", {})) if master else {}
+    export_map = master.get("export_map", master.get("field_map", {})) if master else {}
     
-    return render_template("lecture_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_form_id=agra_form_id, field_map=json.dumps(field_map))
+    return render_template("lecture_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_import_form_id=agra_import_form_id, agra_export_form_id=agra_export_form_id, import_map=json.dumps(import_map), export_map=json.dumps(export_map))
 
 
 @app.route("/generate-lecture-noting", methods=["POST"])
@@ -814,10 +863,12 @@ def dgmss_noting():
     
     masters = load_masters()
     master = next((m for m in masters if m["id"] == "master_tbrl_003"), None)
-    agra_form_id = master.get("agra_form_id") if master else None
-    field_map = master.get("field_map", {}) if master else {}
+    agra_import_form_id = master.get("agra_import_form_id", master.get("agra_form_id")) if master else None
+    agra_export_form_id = master.get("agra_export_form_id", master.get("agra_form_id")) if master else None
+    import_map = master.get("import_map", master.get("field_map", {})) if master else {}
+    export_map = master.get("export_map", master.get("field_map", {})) if master else {}
     
-    return render_template("dgmss_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_form_id=agra_form_id, field_map=json.dumps(field_map))
+    return render_template("dgmss_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_import_form_id=agra_import_form_id, agra_export_form_id=agra_export_form_id, import_map=json.dumps(import_map), export_map=json.dumps(export_map))
 
 
 @app.route("/generate-dgmss-noting", methods=["POST"])
@@ -891,10 +942,12 @@ def fee_noting():
     
     masters = load_masters()
     master = next((m for m in masters if m["id"] == "master_tbrl_004"), None)
-    agra_form_id = master.get("agra_form_id") if master else None
-    field_map = master.get("field_map", {}) if master else {}
+    agra_import_form_id = master.get("agra_import_form_id", master.get("agra_form_id")) if master else None
+    agra_export_form_id = master.get("agra_export_form_id", master.get("agra_form_id")) if master else None
+    import_map = master.get("import_map", master.get("field_map", {})) if master else {}
+    export_map = master.get("export_map", master.get("field_map", {})) if master else {}
     
-    return render_template("fee_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_form_id=agra_form_id, field_map=json.dumps(field_map))
+    return render_template("fee_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_import_form_id=agra_import_form_id, agra_export_form_id=agra_export_form_id, import_map=json.dumps(import_map), export_map=json.dumps(export_map))
 
 
 @app.route("/generate-fee-noting", methods=["POST"])
@@ -969,10 +1022,12 @@ def cancellation_noting():
     
     masters = load_masters()
     master = next((m for m in masters if m["id"] == "master_tbrl_005"), None)
-    agra_form_id = master.get("agra_form_id") if master else None
-    field_map = master.get("field_map", {}) if master else {}
+    agra_import_form_id = master.get("agra_import_form_id", master.get("agra_form_id")) if master else None
+    agra_export_form_id = master.get("agra_export_form_id", master.get("agra_form_id")) if master else None
+    import_map = master.get("import_map", master.get("field_map", {})) if master else {}
+    export_map = master.get("export_map", master.get("field_map", {})) if master else {}
     
-    return render_template("cancellation_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_form_id=agra_form_id, field_map=json.dumps(field_map))
+    return render_template("cancellation_noting_form.html", defaults=defaults, groups=groups, courses=courses, agra_import_form_id=agra_import_form_id, agra_export_form_id=agra_export_form_id, import_map=json.dumps(import_map), export_map=json.dumps(export_map))
 
 
 @app.route("/generate-cancellation-noting", methods=["POST"])
@@ -1082,14 +1137,18 @@ def api_templates():
 @app.route("/api/search_pis")
 def search_pis():
     query = request.args.get("query")
+    form_id = request.args.get("formId")
     if not query:
         return jsonify({"results": []})
         
-    config = load_json(CONFIG_FILE, {})
-    url = config.get("integration", {}).get("agra_api_url", "").replace("/lookup", "/search")
+    url = get_agra_api_url("search")
+    
+    params = {"query": query}
+    if form_id:
+        params["formId"] = form_id
     
     try:
-        response = requests.get(url, params={"query": query}, timeout=5)
+        response = requests.get(url, params=params, timeout=5)
         return jsonify(response.json())
     except Exception as e:
         return jsonify({"results": [], "error": str(e)})
@@ -1106,7 +1165,7 @@ def fetch_pis():
     if not integration.get("enabled"):
         return jsonify({"error": "Integration is disabled"}), 403
         
-    url = integration.get("agra_api_url")
+    url = get_agra_api_url("lookup")
     # Priority: 1. Request arg, 2. Config default
     form_id = request.args.get("formId") or integration.get("master_form_id")
     
@@ -1124,13 +1183,30 @@ def fetch_pis():
 
 @app.route("/api/agra_forms")
 def api_agra_forms():
-    config = load_json(CONFIG_FILE, {})
-    url = config.get("integration", {}).get("agra_api_url", "").replace("/lookup", "/forms")
+    url = get_agra_api_url("forms")
     try:
         response = requests.get(url, timeout=5)
         return jsonify(response.json())
     except Exception as e:
         return jsonify({"forms": [], "error": str(e)})
+
+@app.route("/api/agra_form_fields/<int:form_id>")
+def api_agra_form_fields(form_id):
+    url = get_agra_api_url(f"forms/{form_id}/fields")
+    try:
+        response = requests.get(url, timeout=5)
+        return jsonify(response.json())
+    except Exception as e:
+        return jsonify({"fields": [], "error": str(e)})
+
+@app.route("/api/prefill_proxy", methods=["POST"])
+def prefill_proxy():
+    url = get_agra_api_url("prefill-session")
+    try:
+        response = requests.post(url, json=request.json, timeout=5)
+        return jsonify(response.json()), response.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/masters/update_mapping", methods=["POST"])
 def update_master_mapping():
@@ -1139,7 +1215,12 @@ def update_master_mapping():
     
     master_id = request.json.get("master_id")
     agra_form_id = request.json.get("agra_form_id")
+    agra_import_form_id = request.json.get("agra_import_form_id")
+    agra_export_form_id = request.json.get("agra_export_form_id")
     field_map = request.json.get("field_map")
+    import_map = request.json.get("import_map")
+    export_map = request.json.get("export_map")
+    nominee_columns = request.json.get("nominee_columns")
     
     if not master_id:
         return jsonify({"error": "Master ID is required"}), 400
@@ -1150,8 +1231,19 @@ def update_master_mapping():
         if m["id"] == master_id:
             if agra_form_id is not None:
                 m["agra_form_id"] = int(agra_form_id) if agra_form_id else None
+            if agra_import_form_id is not None:
+                m["agra_import_form_id"] = int(agra_import_form_id) if agra_import_form_id else None
+                m["agra_form_id"] = m["agra_import_form_id"]
+            if agra_export_form_id is not None:
+                m["agra_export_form_id"] = int(agra_export_form_id) if agra_export_form_id else None
             if field_map is not None:
                 m["field_map"] = field_map
+            if import_map is not None:
+                m["import_map"] = import_map
+            if export_map is not None:
+                m["export_map"] = export_map
+            if nominee_columns is not None:
+                m["nominee_columns"] = nominee_columns
             found = True
             break
             
@@ -1160,5 +1252,14 @@ def update_master_mapping():
         return jsonify({"success": True})
     return jsonify({"error": "Master not found"}), 404
 
+@app.route("/favicon.ico")
+def favicon():
+    return "", 204
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    # Start background cleanup task
+    threading.Thread(target=cleanup_task, daemon=True).start()
+
+    # Explicitly enabling threaded=True to ensure multiple users can 
+    # generate documents simultaneously without blocking the server.
+    app.run(host="0.0.0.0", port=5001, debug=False, threaded=True)

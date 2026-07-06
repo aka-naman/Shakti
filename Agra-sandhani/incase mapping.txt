@@ -1,0 +1,34 @@
+ 1. Update the Data Source
+  If you have created a new form in Agra-sandhani or want to switch to a different one:
+   1. Go to Manage / Masters from the dashboard.
+   2. Find the template you are working with (e.g., Common Noting).
+   3. In the DATA SOURCE dropdown, select the new form.
+   4. The system will immediately start pulling data from that specific form for that template.
+
+  2. Update Field Mapping (If Fuzzy Match Fails)
+  I have implemented Fuzzy Matching, which means if your Noting column is "Name" and the Database field is "Full Name",
+  it will likely work automatically. However, if they are completely different (e.g., Noting: Venue, Database:
+  Location_of_Training), you need to map them manually:
+   1. Click the ⚙️ Edit Field Map button next to the template in Master Manager.
+   2. Add a JSON entry in the box:
+
+   1    {
+   2      "Venue": "Location_of_Training",
+   3      "Course Title": "Subject_Name"
+   4    }
+   3. Click Save Mapping. This tells the bridge exactly which database field to "glue" to which noting column.
+
+  3. Handling Table Column Changes
+  If you change the column headers inside your .docx Word template:
+   1. Download the master from Manage / Masters.
+   2. Change the headers (e.g., change PIS n. to Personnel ID).
+   3. Upload the edited .docx back to the system.
+   4. The system will automatically detect the new column names.
+   5. Because of the Fuzzy Matching I added, Personnel ID will still find the PIS field in the database automatically.
+      If it doesn't, just update the Field Map as described in step 2.
+
+  Summary of What's Automatic vs. Manual:
+   * Automatic: If the Noting column name contains or is contained by the Database field name (case-insensitive).
+   * Automatic: Standard fields like Name, Designation, PIS, DOB, Email.
+   * Manual: When the names are completely unrelated (e.g., S.N. vs Index) or when you want to override the default
+     behavior.

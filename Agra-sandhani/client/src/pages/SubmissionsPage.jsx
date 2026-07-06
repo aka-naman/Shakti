@@ -15,12 +15,8 @@ export default function SubmissionsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortMode, setSortMode] = useState('date_desc');
     const [pagination, setPagination] = useState({ total: 0, pages: 1 });
+    const [currentPage, setCurrentPage] = useState(1);
     
-    // Edit Modal State
-    const [editingSubmission, setEditingSubmission] = useState(null);
-    const [editValues, setEditValues] = useState({});
-    const [savingEdit, setSavingEdit] = useState(false);
-
     // Audit State
     const [auditLog, setAuditLog] = useState(null); // { submissionId, entries: [] }
 
@@ -50,11 +46,11 @@ export default function SubmissionsPage() {
     const hasCgpa = fields.some(f => f.type === 'cgpa_converter');
     const hasBranch = fields.some(f => f.type === 'branch');
 
-    const load = useCallback(async (search = '', sort = 'date_desc') => {
+    const load = useCallback(async (search = '', sort = 'date_desc', page = 1) => {
         setLoading(true);
         try {
             const res = await api.get(`/forms/${formId}/submissions`, {
-                params: { search, sortMode: sort }
+                params: { search, sortMode: sort, page, limit: 50 }
             });
             setFields(res.data.fields);
             setSubmissions(res.data.submissions);
@@ -75,31 +71,13 @@ export default function SubmissionsPage() {
 
     useEffect(() => {
         const delayDebounce = setTimeout(() => {
-            load(searchTerm, sortMode);
+            load(searchTerm, sortMode, currentPage);
         }, 500);
         return () => clearTimeout(delayDebounce);
-    }, [searchTerm, sortMode, load]);
+    }, [searchTerm, sortMode, currentPage, load]);
 
     const handleEditClick = (sub) => {
-        const initial = {};
-        fields.forEach(f => {
-            initial[f.id] = getFieldValue(sub, f.id, f.label);
-        });
-        setEditValues(initial);
-        setEditingSubmission(sub);
-    };
-
-    const handleEditSave = async () => {
-        setSavingEdit(true);
-        try {
-            await api.put(`/forms/${formId}/submissions/${editingSubmission.id}`, { values: editValues });
-            setEditingSubmission(null);
-            load(searchTerm, sortMode);
-        } catch {
-            alert('Failed to update submission');
-        } finally {
-            setSavingEdit(false);
-        }
+        navigate(`/forms/${formId}/submissions/${sub.id}/edit`);
     };
 
     const handleDelete = async (subId) => {
@@ -328,39 +306,35 @@ export default function SubmissionsPage() {
                             </tbody>
                         </table>
                     </div>
-                </>
-            )}
 
-            {/* Edit Modal */}
-            {editingSubmission && (
-                <div className="modal-overlay" onClick={() => setEditingSubmission(null)}>
-                    <div className="modal glass-card modal-fixed-height" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>✏️ Edit Response #{editingSubmission.id}</h2>
-                            <p className="modal-subtitle">Directly modifying entry data</p>
+                    {/* Pagination Controls */}
+                    <div className="pagination-bar glass-card">
+                        <div className="pagination-info">
+                            Showing <strong>{submissions.length}</strong> of <strong>{pagination.total}</strong> entries
                         </div>
-                        <div className="modal-body scrollable-content">
-                            {fields.map(f => (
-                                <div key={f.id} className="form-group">
-                                    <label>{f.label}</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        value={editValues[f.id] || ''}
-                                        onChange={(e) => setEditValues({ ...editValues, [f.id]: e.target.value })}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                        <div className="modal-actions-sticky">
-                            <button className="btn btn-ghost" onClick={() => setEditingSubmission(null)}>Cancel</button>
-                            <button className="btn btn-primary" onClick={handleEditSave} disabled={savingEdit}>
-                                {savingEdit ? <span className="spinner-sm"></span> : '💾 Save Changes'}
+                        <div className="pagination-controls">
+                            <button 
+                                className="btn btn-ghost btn-sm" 
+                                disabled={currentPage === 1 || loading}
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            >
+                                ⬅️ Previous
+                            </button>
+                            <div className="page-numbers">
+                                Page <strong>{currentPage}</strong> of <strong>{pagination.pages}</strong>
+                            </div>
+                            <button 
+                                className="btn btn-ghost btn-sm" 
+                                disabled={currentPage === pagination.pages || loading}
+                                onClick={() => setCurrentPage(prev => Math.min(pagination.pages, prev + 1))}
+                            >
+                                Next ➡️
                             </button>
                         </div>
                     </div>
-                </div>
+                </>
             )}
+
             {/* Audit Modal */}
             {auditLog && (
                 <div className="modal-overlay" onClick={() => setAuditLog(null)}>

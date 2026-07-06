@@ -10,12 +10,20 @@ const CGPA_PRESETS = [
     { id: 'other', label: 'Other Scale', scale: '' }
 ];
 
+const RunningBalanceSyncer = ({ fieldId, value, handleChange }) => {
+    useEffect(() => {
+        handleChange(fieldId, value);
+    }, [fieldId, value, handleChange]);
+    return null;
+};
+
 export default function FormSubmitPage() {
-    const { formId } = useParams();
+    const { formId, submissionId } = useParams();
     const [fields, setFields] = useState([]);
     const [values, setValues] = useState({});
     const [checkboxValues, setCheckboxValues] = useState({});
     const [otherValues, setOtherValues] = useState({}); // Stores complex field states like CGPA/Address
+    const [existingFiles, setExistingFiles] = useState({}); // Stores array of filename strings for loaded files
     const [formName, setFormName] = useState('');
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -29,6 +37,7 @@ export default function FormSubmitPage() {
     const [dynamicBanks, setDynamicBanks] = useState([]);
     const [fileUploads, setFileUploads] = useState({}); // Stores array of file objects for upload
     const [uploadProgress, setUploadProgress] = useState({}); // Track upload progress
+    const [historicalAggregates, setHistoricalAggregates] = useState({});
     
     const [newUniModal, setNewUniModal] = useState({ 
         show: false, name: '', state: '', district: '', fieldId: null,
@@ -37,7 +46,7 @@ export default function FormSubmitPage() {
     });
     const fieldRefs = useRef({});
 
-    // 1. Persistence: Load draft from localStorage on mount
+    // 1. Persistence: Load draft or prefilled response on mount
     useEffect(() => {
         const load = async () => {
             try {
@@ -66,40 +75,182 @@ export default function FormSubmitPage() {
                 const loadedFields = fieldsRes.data.fields;
                 setFields(loadedFields);
 
-                // Initialize states with Draft data if available
-                const draft = JSON.parse(localStorage.getItem(`form_draft_${formId}`) || '{}');
-                
+                // Fetch temporary prefilled data if prefillToken query param is present
+                const queryParams = new URLSearchParams(window.location.search);
+                const prefillToken = queryParams.get('prefillToken');
+                let prefilledData = null;
+                if (prefillToken) {
+                    try {
+                        const prefillRes = await api.get(`/forms/${formId}/prefill-session/${prefillToken}`);
+                        prefilledData = prefillRes.data.values || {};
+                    } catch (err) {
+                        console.error('Failed to load prefilled session data', err);
+                    }
+                }
+
                 const initialValues = {};
                 const initialCheckboxes = {};
                 const initialOthers = {};
+                const initialExistingFiles = {};
 
-                loadedFields.forEach(f => {
-                    initialValues[f.id] = draft.values?.[f.id] || '';
-                    if (f.type === 'checkboxes' || f.type === 'multiple_choice') {
-                        initialCheckboxes[f.id] = draft.checkboxValues?.[f.id] || [];
-                    }
-                    if (f.type === 'cgpa_converter') {
-                        initialOthers[f.id] = draft.otherValues?.[f.id] || { 
-                            cgpa: '', 
-                            presetId: '10', 
-                            scale: 10, 
-                            factorType: 'auto', 
-                            factor: 10 
-                        };
-                    }
-                    if (f.type === 'bank_details' && !draft.otherValues?.[f.id]) {
-                        initialOthers[f.id] = { bank: '', accNo: '', ifsc: '' };
-                    }
-                });
+                if (submissionId) {
+                    const subRes = await api.get(`/forms/${formId}/submissions/${submissionId}`);
+                    const submission = subRes.data.submission;
+                    const subData = submission.data_json || {};
 
-                // Merge any other draft states
-                if (draft.otherValues) {
-                    Object.assign(initialOthers, draft.otherValues);
+                    for (const f of loadedFields) {
+                        // Prefill data from token overrides submission data
+                        const val = prefilledData && prefilledData[f.label] !== undefined
+                            ? String(prefilledData[f.label])
+                            : (subData[f.label] !== undefined ? String(subData[f.label]) : '');
+                        initialValues[f.id] = val;
+
+                        if (f.type === 'checkboxes' || f.type === 'multiple_choice') {
+                            initialCheckboxes[f.id] = val ? val.split(' ||| ') : [];
+                        }
+
+                        if (f.type === 'cgpa_converter') {
+                            const cgpaMatch = val.match(/CGPA:\s*([\d.]+),\s*Scale:\s*([\d.]+),\s*Factor:\s*([\d.]+)/);
+                            if (cgpaMatch) {
+                                const obtained = cgpaMatch[1];
+                                const scale = cgpaMatch[2];
+                                const factor = cgpaMatch[3];
+                                initialOthers[f.id] = {
+                                    cgpa: obtained,
+                                    presetId: scale === '10' ? '10' : scale === '7' ? '7' : scale === '4' ? '4' : 'other',
+                                    scale: scale,
+                                    factorType: (100 / parseFloat(scale)).toFixed(4) === parseFloat(factor).toFixed(4) ? 'auto' : 'manual',
+                                    factor: factor
+                                };
+                            } else {
+                                const rawNum = parseFloat(val);
+                                if (!isNaN(rawNum)) {
+                                    initialOthers[f.id] = {
+                                        cgpa: rawNum,
+                                        presetId: '10',
+                                        scale: 10,
+                                        factorType: 'auto',
+                                        factor: 10
+                                    };
+                                } else {
+                                    initialOthers[f.id] = {
+                                        cgpa: '',
+                                        presetId: '10',
+                                        scale: 10,
+                                        factorType: 'auto',
+                                        factor: 10
+                                    };
+                                }
+                            }
+                        }
+
+                        if (f.type === 'bank_details') {
+                            const bankMatch = val.match(/Bank:\s*(.*?)\s*\|\|\|\s*A\/c:\s*(.*?)\s*\|\|\|\s*IFSC:\s*(.*)/);
+                            if (bankMatch) {
+                                initialOthers[f.id] = {
+                                    bank: bankMatch[1],
+                                    accNo: bankMatch[2],
+                                    ifsc: bankMatch[3]
+                                };
+                            } else {
+                                initialOthers[f.id] = { bank: '', accNo: '', ifsc: '' };
+                            }
+                        }
+
+                        if (f.type === 'file_upload' && val && val.startsWith('/uploads/')) {
+                            try {
+                                const fileListRes = await api.get('/forms/upload-files', { params: { folderPath: val } });
+                                initialExistingFiles[f.id] = fileListRes.data.files || [];
+                            } catch (err) {
+                                console.error('Failed to load existing files', err);
+                            }
+                        }
+                    }
+                } else {
+                    // Initialize states with Draft data or Prefill data if available
+                    const draft = JSON.parse(localStorage.getItem(`form_draft_${formId}`) || '{}');
+                    
+                    for (const f of loadedFields) {
+                        const val = prefilledData && prefilledData[f.label] !== undefined
+                            ? String(prefilledData[f.label])
+                            : (draft.values?.[f.id] || '');
+                        initialValues[f.id] = val;
+
+                        if (f.type === 'checkboxes' || f.type === 'multiple_choice') {
+                            initialCheckboxes[f.id] = prefilledData && prefilledData[f.label] !== undefined
+                                ? (val ? val.split(' ||| ') : [])
+                                : (draft.checkboxValues?.[f.id] || []);
+                        }
+
+                        if (f.type === 'cgpa_converter') {
+                            let cgpaVal = draft.otherValues?.[f.id];
+                            if (prefilledData && prefilledData[f.label] !== undefined) {
+                                const cgpaMatch = val.match(/CGPA:\s*([\d.]+),\s*Scale:\s*([\d.]+),\s*Factor:\s*([\d.]+)/);
+                                if (cgpaMatch) {
+                                    cgpaVal = {
+                                        cgpa: cgpaMatch[1],
+                                        presetId: cgpaMatch[2] === '10' ? '10' : cgpaMatch[2] === '7' ? '7' : cgpaMatch[2] === '4' ? '4' : 'other',
+                                        scale: cgpaMatch[2],
+                                        factorType: (100 / parseFloat(cgpaMatch[2])).toFixed(4) === parseFloat(cgpaMatch[3]).toFixed(4) ? 'auto' : 'manual',
+                                        factor: cgpaMatch[3]
+                                    };
+                                } else {
+                                    const rawNum = parseFloat(val);
+                                    if (!isNaN(rawNum)) {
+                                        cgpaVal = {
+                                            cgpa: rawNum,
+                                            presetId: '10',
+                                            scale: 10,
+                                            factorType: 'auto',
+                                            factor: 10
+                                        };
+                                    }
+                                }
+                            }
+                            initialOthers[f.id] = cgpaVal || { 
+                                cgpa: '', 
+                                presetId: '10', 
+                                scale: 10, 
+                                factorType: 'auto', 
+                                factor: 10 
+                            };
+                        }
+
+                        if (f.type === 'bank_details') {
+                            let bankVal = draft.otherValues?.[f.id];
+                            if (prefilledData && prefilledData[f.label] !== undefined) {
+                                const bankMatch = val.match(/Bank:\s*(.*?)\s*\|\|\|\s*A\/c:\s*(.*?)\s*\|\|\|\s*IFSC:\s*(.*)/);
+                                if (bankMatch) {
+                                    bankVal = {
+                                        bank: bankMatch[1],
+                                        accNo: bankMatch[2],
+                                        ifsc: bankMatch[3]
+                                    };
+                                }
+                            }
+                            initialOthers[f.id] = bankVal || { bank: '', accNo: '', ifsc: '' };
+                        }
+
+                        if (f.type === 'file_upload' && val && val.startsWith('/uploads/')) {
+                            try {
+                                const fileListRes = await api.get('/forms/upload-files', { params: { folderPath: val } });
+                                initialExistingFiles[f.id] = fileListRes.data.files || [];
+                            } catch (err) {
+                                console.error('Failed to load prefilled files', err);
+                            }
+                        }
+                    }
+
+                    // Merge any other draft states if we didn't just load prefilledData
+                    if (draft.otherValues && !prefilledData) {
+                        Object.assign(initialOthers, draft.otherValues);
+                    }
                 }
 
                 setValues(initialValues);
                 setCheckboxValues(initialCheckboxes);
                 setOtherValues(initialOthers);
+                setExistingFiles(initialExistingFiles);
             } catch {
                 setError('Failed to load form');
             } finally {
@@ -107,19 +258,86 @@ export default function FormSubmitPage() {
             }
         };
         load();
-    }, [formId]);
+    }, [formId, submissionId]);
 
-    // 2. Persistence: Save to localStorage on change
+    // Running Balance Aggregate Loader
     useEffect(() => {
-        if (!loading && !submitted) {
+        const fetchAggs = async () => {
+            const rbFields = fields.filter(f => f.type === 'running_balance');
+            for (const field of rbFields) {
+                const groupFieldLabel = field.validation_rules?.balance_group_field;
+                const transactionFieldLabel = field.validation_rules?.balance_transaction_field;
+                const principleFieldLabel = field.validation_rules?.balance_principle_field;
+                if (!transactionFieldLabel) continue;
+
+                let groupByField = null;
+                let groupByValue = null;
+                if (groupFieldLabel) {
+                    const groupField = fields.find(f => f.label === groupFieldLabel);
+                    if (groupField) {
+                        groupByField = groupField.label;
+                        groupByValue = values[groupField.id];
+                        if (!groupByValue) {
+                            setHistoricalAggregates(prev => ({ ...prev, [field.id]: { principle: 0, totalDeductions: 0 } }));
+                            continue;
+                        }
+                    }
+                }
+
+                try {
+                    const res = await api.post(`/forms/${formId}/aggregate`, {
+                        principleField: principleFieldLabel,
+                        transactionField: transactionFieldLabel,
+                        groupByField,
+                        groupByValue
+                    });
+                    setHistoricalAggregates(prev => ({ ...prev, [field.id]: res.data }));
+                } catch (err) { console.error('Agg fail', err); }
+            }
+        };
+        
+        if (fields.length > 0) {
+            fetchAggs();
+        }
+    }, [formId, fields, ...fields.filter(f => f.type === 'running_balance' && f.validation_rules?.balance_group_field).map(f => values[fields.find(sf => sf.label === f.validation_rules.balance_group_field)?.id])]);
+
+    // 2. Persistence: Save to localStorage on change (only if not editing)
+    useEffect(() => {
+        if (!loading && !submitted && !submissionId) {
             const draft = { values, checkboxValues, otherValues };
             localStorage.setItem(`form_draft_${formId}`, JSON.stringify(draft));
         }
-    }, [values, checkboxValues, otherValues, loading, submitted, formId]);
+    }, [values, checkboxValues, otherValues, loading, submitted, formId, submissionId]);
 
     const handleChange = (fieldId, value) => {
         setValues(prev => ({ ...prev, [fieldId]: value }));
         if (fieldError.fieldId === fieldId) setFieldError({ fieldId: null, message: '' });
+    };
+
+    const handleDataLinkBlur = async (field, value) => {
+        const link = field.validation_rules?.data_link;
+        if (link?.target_form_id && link?.lookup_field && value?.trim()) {
+            try {
+                const res = await api.get(`/forms/${link.target_form_id}/lookup`, {
+                    params: { lookupField: link.lookup_field, value: value.trim() }
+                });
+                if (res.data.data) {
+                    const targetData = res.data.data;
+                    const updates = {};
+                    (link.mappings || []).forEach(m => {
+                        if (m.source && m.target) {
+                            const targetField = fields.find(f => f.label === m.target);
+                            if (targetField) updates[targetField.id] = targetData[m.source] || '';
+                        }
+                    });
+                    setValues(prev => ({ ...prev, ...updates }));
+                }
+            } catch (err) { 
+                if (err.response?.status !== 404) {
+                    console.error('Data link lookup failed', err); 
+                }
+            }
+        }
     };
 
     const handleBlurUnique = async (field, value) => {
@@ -127,7 +345,11 @@ export default function FormSubmitPage() {
         
         try {
             const res = await api.get(`/forms/${formId}/validate-unique`, {
-                params: { label: field.label, value: value.trim() }
+                params: { 
+                    label: field.label, 
+                    value: value.trim(),
+                    excludeSubmissionId: submissionId || undefined
+                }
             });
             if (res.data.exists) {
                 setFieldError({ 
@@ -246,7 +468,11 @@ export default function FormSubmitPage() {
             if (field.is_unique && isFilled) {
                 try {
                     const res = await api.get(`/forms/${formId}/validate-unique`, {
-                        params: { label: field.label, value: finalValues[field.id].trim() }
+                        params: { 
+                            label: field.label, 
+                            value: finalValues[field.id].trim(),
+                            excludeSubmissionId: submissionId || undefined
+                        }
                     });
                     if (res.data.exists) {
                         setFieldError({ 
@@ -313,9 +539,12 @@ export default function FormSubmitPage() {
                 final[id] = uploadedFilePaths[id];
             });
 
-            await api.post(`/forms/${formId}/submit`, { values: final, remarks });
-            
-            localStorage.removeItem(`form_draft_${formId}`);
+            if (submissionId) {
+                await api.put(`/forms/${formId}/submissions/${submissionId}`, { values: final });
+            } else {
+                await api.post(`/forms/${formId}/submit`, { values: final, remarks });
+                localStorage.removeItem(`form_draft_${formId}`);
+            }
             setSubmitted(true);
         } catch (err) {
             setError(err.response?.data?.error || 'Submission failed');
@@ -397,6 +626,7 @@ export default function FormSubmitPage() {
             case 'file_upload': {
                 const files = fileUploads[field.id] || [];
                 const progress = uploadProgress[field.id];
+                const isPrefilledSession = !!new URLSearchParams(window.location.search).get('prefillToken');
 
                 return (
                     <div className="file-upload-container">
@@ -413,13 +643,27 @@ export default function FormSubmitPage() {
                             {files.length > 0 ? (
                                 <div className="file-info-grid">
                                     <div className="file-count-status" style={{ fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                                        {files.length} file(s) selected
+                                        {files.length} new file(s) selected (will replace existing files)
                                     </div>
                                     {files.map((f, idx) => (
                                         <div key={idx} className="file-info-item small">
                                             <span>📄 {f.name}</span>
                                         </div>
                                     ))}
+                                </div>
+                            ) : existingFiles[field.id] && existingFiles[field.id].length > 0 ? (
+                                <div className="file-info-grid">
+                                    <div className="file-count-status" style={{ fontWeight: 'bold', marginBottom: '0.5rem', color: 'var(--accent-success)' }}>
+                                        📂 {existingFiles[field.id].length} existing file(s) uploaded
+                                    </div>
+                                    {existingFiles[field.id].map((fn, idx) => (
+                                        <div key={idx} className="file-info-item small">
+                                            <span>📄 {fn}</span>
+                                        </div>
+                                    ))}
+                                    <div className="small text-muted mt-2" style={{ borderTop: '1px dashed var(--border-color)', paddingTop: '0.5rem' }}>
+                                        Click here to select new files to replace them.
+                                    </div>
                                 </div>
                             ) : (
                                 <div className="file-prompt">
@@ -431,6 +675,11 @@ export default function FormSubmitPage() {
                         {progress !== undefined && progress < 100 && (
                             <div className="progress-bar-bg">
                                 <div className="progress-bar-fill" style={{ width: `${progress}%` }}></div>
+                            </div>
+                        )}
+                        {isPrefilledSession && (
+                            <div className="alert-prefill-note" style={{ fontSize: '0.75rem', marginTop: '6px', color: '#b27500', display: 'flex', alignItems: 'center', gap: '4px', background: '#fff9e6', padding: '6px 8px', borderRadius: '4px', border: '1px solid #faebcc' }}>
+                                ⚠️ <strong>Note:</strong> Files cannot be automatically imported from noting documents due to browser security. Please re-attach files here manually.
                             </div>
                         )}
                     </div>
@@ -676,6 +925,65 @@ export default function FormSubmitPage() {
                 );
             }
 
+            case 'running_balance': {
+                const principleFieldLabel = field.validation_rules?.balance_principle_field;
+                const transactionFieldLabel = field.validation_rules?.balance_transaction_field;
+                
+                const principleField = fields.find(f => f.label === principleFieldLabel);
+                const transField = fields.find(f => f.label === transactionFieldLabel);
+                
+                const hist = historicalAggregates[field.id] || { principle: 0, totalDeductions: 0 };
+                
+                // Opening Balance = (Historical Principle) - (Past Deductions)
+                // If it's the very first entry, Opening Balance is the current Principle input.
+                const histPrinciple = hist.principle || parseFloat(values[principleField?.id]) || 0;
+                const openingBalance = histPrinciple - hist.totalDeductions;
+                
+                const currentTrans = parseFloat(values[transField?.id]) || 0;
+                const closingBalance = openingBalance - currentTrans;
+
+                return (
+                    <div className="running-balance-display glass-card" style={{ padding: '0.75rem', background: 'rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                                <span className="text-muted">Opening Balance:</span>
+                                <span style={{ fontWeight: 'bold' }}>{openingBalance.toLocaleString()}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', borderTop: '1px border var(--border-color)', paddingTop: '0.5rem' }}>
+                                <span>Closing Balance:</span>
+                                <span style={{ fontWeight: 'bold', color: closingBalance < 0 ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
+                                    {closingBalance.toLocaleString()}
+                                </span>
+                            </div>
+                        </div>
+                        {hist.principle > 0 && (
+                            <div className="mt-2" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                                ⛓️ Linked to Master Record ({hist.principle.toLocaleString()} Principle)
+                            </div>
+                        )}
+                        <RunningBalanceSyncer fieldId={field.id} value={closingBalance.toString()} handleChange={handleChange} />
+                    </div>
+                );
+            }
+
+            case 'data_link_trigger':
+                return (
+                    <div className="data-link-input-container">
+                        <input 
+                            type="text" 
+                            className="form-input" 
+                            value={val} 
+                            onChange={(e) => handleChange(field.id, e.target.value)}
+                            onBlur={(e) => {
+                                handleBlurUnique(field, e.target.value);
+                                handleDataLinkBlur(field, e.target.value);
+                            }}
+                            placeholder="Type value to autofill..."
+                        />
+                        <span className="field-hint small">🔗 This field triggers automatic lookup and autofill.</span>
+                    </div>
+                );
+
             case 'university_autocomplete':
                 return <AutocompleteInput value={val.split(' (')[0]} onSelect={(item) => handleUniversitySelect(item, field.id)} onChange={() => {}} placeholder="University Name..." />;
 
@@ -773,7 +1081,20 @@ export default function FormSubmitPage() {
                     </div>
                 );
             }
-            default:
+
+            default: {
+                // Check if this field is a Principle field for an active ledger
+                const associatedLedger = fields.find(f => f.type === 'running_balance' && f.validation_rules?.balance_principle_field === field.label);
+                const hasHistoricalPrinciple = !!historicalAggregates[associatedLedger?.id]?.principle;
+
+                if (hasHistoricalPrinciple) {
+                    return (
+                        <div className="field-hidden-notice" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            Principle is established in Master Record.
+                        </div>
+                    );
+                }
+
                 return (
                     <input 
                         type={field.type === 'email' ? 'email' : (field.type === 'integer' ? 'number' : 'text')} 
@@ -783,11 +1104,12 @@ export default function FormSubmitPage() {
                         onBlur={(e) => handleBlurUnique(field, e.target.value)}
                     />
                 );
+            }
         }
     };
 
     const isFullWidthField = (type) => {
-        return ['textarea', 'residential_address', 'cgpa_converter', 'zone_group', 'checkboxes', 'multiple_choice', 'linear_scale'].includes(type);
+        return ['textarea', 'residential_address', 'cgpa_converter', 'zone_group', 'checkboxes', 'multiple_choice', 'linear_scale', 'running_balance'].includes(type);
     };
 
     if (loading) return <div className="loading-screen"><div className="spinner"></div></div>;
@@ -795,8 +1117,12 @@ export default function FormSubmitPage() {
     if (submitted) return (
         <div className="submit-page">
             <div className="success-container glass-card">
-                <h2>Response Submitted!</h2>
-                <button className="btn btn-primary" onClick={() => window.location.reload()}>Submit Another</button>
+                <h2>{submissionId ? 'Response Updated!' : 'Response Submitted!'}</h2>
+                {submissionId ? (
+                    <button className="btn btn-primary" onClick={() => window.location.href = `/forms/${formId}/submissions`}>Back to Submissions</button>
+                ) : (
+                    <button className="btn btn-primary" onClick={() => window.location.reload()}>Submit Another</button>
+                )}
             </div>
         </div>
     );
@@ -805,7 +1131,7 @@ export default function FormSubmitPage() {
         <div className="submit-page">
             <div className="submit-container">
                 <header className="submit-header glass-card">
-                    <h1>{formName}</h1>
+                    <h1>{submissionId ? `✏️ Edit Response #${submissionId} — ${formName}` : formName}</h1>
                 </header>
                 <form onSubmit={handleSubmit} className="submit-form-grid">
                     {fields.map(field => (
@@ -822,7 +1148,9 @@ export default function FormSubmitPage() {
                         </div>
                     ))}
                     <div className="submit-actions">
-                        <button type="submit" className="btn btn-primary btn-full" disabled={submitting}>Submit Response</button>
+                        <button type="submit" className="btn btn-primary btn-full" disabled={submitting}>
+                            {submissionId ? 'Save Changes' : 'Submit Response'}
+                        </button>
                     </div>
                 </form>
             </div>

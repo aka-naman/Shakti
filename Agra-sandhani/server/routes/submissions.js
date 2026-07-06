@@ -75,11 +75,6 @@ router.post('/:formId/submit', authenticate, async (req, res) => {
             const rawVal = values[field.id] !== undefined ? String(values[field.id]) : '';
             dataJson[field.label] = rawVal;
             
-            await client.query(
-                'INSERT INTO submission_values (submission_id, field_id, value) VALUES ($1, $2, $3)',
-                [submission.id, field.id, rawVal]
-            );
-
             // Learning logic...
             if (field.type === 'university_autocomplete' && rawVal) {
                 let uState = '', uDist = '';
@@ -186,18 +181,14 @@ router.get('/:formId/submissions', authenticate, async (req, res) => {
         const cgpaField = fields.find(f => f.type === 'cgpa_converter');
         const branchField = fields.find(f => f.type === 'branch');
 
-        // Fetch ALL submissions for this form (across all versions)
-        let searchQuery = `
-            SELECT s.id, s.submitted_at, s.updated_at, s.data_json, 
-                u1.username as submitted_by_username,
-                u2.username as updated_by_username,
-                json_agg(
-                    json_build_object('field_id', sv.field_id, 'value', sv.value)
-                    ORDER BY sv.field_id
-                ) as values
+        // Fetch paginated submissions for this form
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = (page - 1) * limit;
+
+        let baseQuery = `
             FROM submissions s
             JOIN form_versions fv ON s.form_version_id = fv.id
-            LEFT JOIN submission_values sv ON sv.submission_id = s.id
             LEFT JOIN users u1 ON s.user_id = u1.id
             LEFT JOIN users u2 ON s.updated_by = u2.id
             WHERE fv.form_id = $1 AND s.deleted_at IS NULL
@@ -205,11 +196,13 @@ router.get('/:formId/submissions', authenticate, async (req, res) => {
         const params = [req.params.formId];
 
         if (search) {
-            searchQuery += ` AND s.id IN (SELECT submission_id FROM submission_values WHERE value ILIKE $2)`;
+            baseQuery += ` AND s.data_json::text ILIKE $2`;
             params.push(`%${search}%`);
         }
 
-        searchQuery += ` GROUP BY s.id, s.submitted_at, s.updated_at, s.data_json, u1.username, u2.username`;
+        // Count total for pagination
+        const countResult = await pool.query(`SELECT COUNT(*) ${baseQuery}`, params);
+        const totalItems = parseInt(countResult.rows[0].count);
 
         // Dynamic Sorting logic
         let orderBy = 'ORDER BY s.submitted_at DESC'; // Default
@@ -220,27 +213,63 @@ router.get('/:formId/submissions', authenticate, async (req, res) => {
         } else if (sortMode === 'branch_cgpa' && branchField && cgpaField) {
             orderBy = `ORDER BY (data_json->>'${branchField.label}') ASC NULLS LAST, 
                        (NULLIF(substring(data_json->>'${cgpaField.label}' from '^[0-9.]+'), '')::numeric) DESC NULLS LAST`;
-        } else if (sortMode === 'branch_cgpa' && branchField) { // Fallback if only branch exists
-            orderBy = `ORDER BY (data_json->>'${branchField.label}') ASC NULLS LAST`;
         }
 
-        searchQuery += ` ${orderBy}`;
-
-        const subsResult = await pool.query(searchQuery, params);
+        const dataQuery = `
+            SELECT s.id, s.submitted_at, s.updated_at, s.data_json, 
+                u1.username as submitted_by_username,
+                u2.username as updated_by_username
+            ${baseQuery}
+            ${orderBy}
+            LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+        `;
+        
+        const dataParams = [...params, limit, offset];
+        const subsResult = await pool.query(dataQuery, dataParams);
 
         res.json({
             fields: fields,
             submissions: subsResult.rows,
             pagination: {
-                total: subsResult.rows.length,
-                page: 1,
-                limit: subsResult.rows.length,
-                pages: 1
+                total: totalItems,
+                page: page,
+                limit: limit,
+                pages: Math.ceil(totalItems / limit)
             }
         });
     } catch (err) {
         console.error('List submissions error:', err);
         res.status(500).json({ error: 'Failed to list submissions' });
+    }
+});
+
+// GET /api/forms/:formId/submissions/:submissionId — Fetch single submission
+router.get('/:formId/submissions/:submissionId', authenticate, async (req, res) => {
+    try {
+        const access = await checkFormAccess(req.params.formId, req.user.id, req.user.role);
+        if (!access.exists) return res.status(404).json({ error: 'Form not found' });
+        if (!access.hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+        const result = await pool.query(
+            `SELECT s.id, s.submitted_at, s.updated_at, s.data_json, s.remarks,
+                 u1.username as submitted_by_username,
+                 u2.username as updated_by_username
+             FROM submissions s
+             JOIN form_versions fv ON s.form_version_id = fv.id
+             LEFT JOIN users u1 ON s.user_id = u1.id
+             LEFT JOIN users u2 ON s.updated_by = u2.id
+             WHERE fv.form_id = $1 AND s.id = $2 AND s.deleted_at IS NULL`,
+            [req.params.formId, req.params.submissionId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found' });
+        }
+
+        res.json({ submission: result.rows[0] });
+    } catch (err) {
+        console.error('Get submission error:', err);
+        res.status(500).json({ error: 'Failed to get submission' });
     }
 });
 
@@ -259,22 +288,23 @@ router.put('/:formId/submissions/:submissionId', authenticate, async (req, res) 
 
         await client.query('BEGIN');
 
-        // 1. CREATE AUDIT SNAPSHOT
-        const currentValues = await client.query(
-            `SELECT json_object_agg(field_id, value) as snapshot 
-             FROM submission_values WHERE submission_id = $1`,
+        // 1. CREATE AUDIT SNAPSHOT (Using data_json)
+        const currentSub = await client.query(
+            'SELECT data_json FROM submissions WHERE id = $1',
             [req.params.submissionId]
         );
 
         await client.query(
             `INSERT INTO submission_audit (submission_id, changed_by, old_values_json, change_type)
              VALUES ($1, $2, $3, 'update')`,
-            [req.params.submissionId, req.user.id, currentValues.rows[0].snapshot || {}]
+            [req.params.submissionId, req.user.id, currentSub.rows[0].data_json || {}]
         );
 
         // 2. UPDATE MAIN DATA
-        await client.query('UPDATE submissions SET updated_at = NOW(), updated_by = $1 WHERE id = $2', [req.user.id, req.params.submissionId]);
-        await client.query('DELETE FROM submission_values WHERE submission_id = $1', [req.params.submissionId]);
+        await client.query(
+            'UPDATE submissions SET submitted_at = NOW(), user_id = $1, updated_at = NOW(), updated_by = $1 WHERE id = $2',
+            [req.user.id, req.params.submissionId]
+        );
 
         const fieldsResult = await client.query(
             `SELECT ff.id, ff.label, ff.validation_rules FROM form_fields ff 
@@ -284,8 +314,6 @@ router.put('/:formId/submissions/:submissionId', authenticate, async (req, res) 
             [req.params.submissionId]
         );
         const fields = fieldsResult.rows;
-        const fieldMap = {};
-        fields.forEach(f => fieldMap[f.id] = f);
 
         const dataJson = {};
         const emptyOptionalFields = [];
@@ -293,11 +321,6 @@ router.put('/:formId/submissions/:submissionId', authenticate, async (req, res) 
         for (const field of fields) {
             const val = values[field.id] !== undefined ? String(values[field.id]) : '';
             dataJson[field.label] = val;
-
-            await client.query(
-                'INSERT INTO submission_values (submission_id, field_id, value) VALUES ($1, $2, $3)',
-                [req.params.submissionId, field.id, val]
-            );
 
             // Check for empty optional fields to update remarks
             if (!field.validation_rules?.required && !val) {

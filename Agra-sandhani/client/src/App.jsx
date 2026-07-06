@@ -61,6 +61,14 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/forms/:formId/submissions/:submissionId/edit"
+              element={
+                <ProtectedRoute>
+                  <FormSubmitPage />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

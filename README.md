@@ -1,4 +1,4 @@
-# AeroForm Suite (Shakti)
+Shakti
 
 AeroForm Suite is an integrated application suite designed for offline, air-gapped Local Area Network (LAN) deployments. The suite includes a Form Builder, a Noting Engine, and a Unified Portal to serve as a secure and functional intranet portal.
 

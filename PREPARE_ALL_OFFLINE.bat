@@ -22,18 +22,27 @@ echo    - Building Production Frontend Assets...
 call npm run build
 cd ..\..
 
-:: 2. Smart-Office-Noting Preparation
+:: 2. Noting-Builder Preparation
 echo.
-echo 📋 Phase 2: Preparing Smart-Office-Noting (Python)...
-cd smart-office-noting
-echo    - Setting up Virtual Environment...
-if not exist "venv" python -m venv venv
-echo    - Installing Python Dependencies locally...
-call venv\Scripts\python.exe -m pip install -r requirements.txt --quiet
-echo    - Downloading Offline Wheel Packages (Backup)...
-if not exist "offline_packages" mkdir offline_packages
-call venv\Scripts\python.exe -m pip download -r requirements.txt -d offline_packages --quiet
+echo 📋 Phase 2: Preparing Noting-Builder (Python)...
+cd Noting_builder
+python --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo    [WARNING] Python is not installed or not in PATH. Skipping venv setup.
+    echo              Please make sure to set up Python and download dependencies later.
+) else (
+    echo    - Setting up Virtual Environment...
+    if not exist "venv" python -m venv venv
+    echo    - Upgrading pip...
+    call venv\Scripts\python.exe -m pip install --upgrade pip --quiet 2>nul
+    echo    - Installing Python Dependencies locally...
+    call venv\Scripts\python.exe -m pip install -r requirements.txt --quiet
+    echo    - Downloading Offline Wheel Packages (Backup)...
+    if not exist "offline_packages" mkdir offline_packages
+    call venv\Scripts\python.exe -m pip download -r requirements.txt -d offline_packages --quiet
+)
 cd ..
+
 
 :: 3. Portal Preparation
 echo.
@@ -43,7 +52,7 @@ echo    - Installing Portal Node Modules...
 call npm install --production --silent
 cd ..
 
-:: 4. Asset Audit (Fonts & Icons)
+:: 4. Asset Audit
 echo.
 echo 📋 Phase 4: Bundling External Assets...
 echo [INFO] System is configured to use local fonts where possible.
@@ -58,7 +67,8 @@ echo.
 echo 📦 NEXT STEPS FOR AIR-GAP DEPLOYMENT:
 echo.
 echo 1. ZIP THE ENTIRE ROOT FOLDER:
-echo    Select all folders (Agra-sandhani, smart-office-noting, Portal) 
+echo    Select all folders (Agra-sandhani, Noting_builder, Portal) 
+
 echo    and the Launch files. Right-click -^> Send to Compressed Folder.
 echo.
 echo 2. TRANSFER TO OFFLINE PC:

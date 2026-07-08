@@ -1,6 +1,0 @@
-flask
-psycopg2-binary
-python-docx
-reportlab
-requests
-waitress

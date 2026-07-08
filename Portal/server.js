@@ -7,6 +7,9 @@ const PORT = 8080;
 
 // Function to get Local IP Address
 function getLocalIp() {
+    if (process.env.LAN_IP) {
+        return process.env.LAN_IP;
+    }
     const interfaces = os.networkInterfaces();
     for (const devName in interfaces) {
         const iface = interfaces[devName];

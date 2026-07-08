@@ -7,9 +7,9 @@ Before leaving the internet-connected machine, ensure your ZIP file contains:
 
 1.  **Agra-sandhani/server/node_modules/** (Pre-installed backend dependencies)
 2.  **Agra-sandhani/client/dist/** (The compiled, production-ready frontend)
-3.  **smart-office-noting/venv/** (The pre-populated Python virtual environment)
+3.  **Noting_builder/venv/** (The pre-populated Python virtual environment)
 4.  **Portal/node_modules/** (Portal hub dependencies)
-5.  **smart-office-noting/offline_packages/** (Backup .whl files for emergency repairs)
+5.  **Noting_builder/offline_packages/** (Backup .whl files for emergency repairs)
 
 ## 🚚 The Transfer Process
 1.  Run `PREPARE_ALL_OFFLINE.bat` on the internet-connected PC.

@@ -1,6 +1,6 @@
 # 🛠️ AeroForm Suite: Troubleshooting & Configuration Guide
 
-This guide addresses common issues during offline installation and explains how to configure the "Smart Noting" system to work with your specific forms.
+This guide addresses common issues during offline installation and explains how to configure the "Noting Builder" system to work with your specific forms.
 
 ---
 
@@ -10,7 +10,7 @@ This guide addresses common issues during offline installation and explains how 
 **Issue**: When running `HOST_ON_LAN.bat`, you see errors about `python.exe` not found.
 **Solution**: 
 *   Ensure Python 3.12+ is installed on the offline machine and "Add to PATH" was checked during installation.
-*   The script will automatically try to repair the `venv`. If it fails, delete the `smart-office-noting/venv` folder manually and run the script again.
+*   The script will automatically try to repair the `venv`. If it fails, delete the `Noting_builder/venv` folder manually and run the script again.
 
 ### 2. Database Connection Failure
 **Issue**: "Error: connect ECONNREFUSED 127.0.0.1:5432".
@@ -27,9 +27,9 @@ This guide addresses common issues during offline installation and explains how 
 
 ---
 
-## 🔗 Part 2: Linking Forms to Smart Noting (The "ID" Problem)
+## 🔗 Part 2: Linking Forms to Noting Builder (The "ID" Problem)
 
-When you create a new form in Agra-sandhani, the database assigns it a unique **Form ID** (e.g., 23, 24, 25). The Smart Noting system needs to know which form to pull data from.
+When you create a new form in Agra-sandhani, the database assigns it a unique **Form ID** (e.g., 23, 24, 25). The Noting Builder system needs to know which form to pull data from.
 
 ### Step 1: Find your Form ID
 1.  Open the **Agra-sandhani** dashboard.
@@ -39,7 +39,7 @@ When you create a new form in Agra-sandhani, the database assigns it a unique **
 
 ### Step 2: Configure the Noting App
 You must tell the Noting app which ID to use for lookups.
-1.  Open `smart-office-noting/config.json`.
+1.  Open `Noting_builder/config.json`.
 2.  Update the `master_form_id` and the `agra_api_url`:
     ```json
     "integration": {
@@ -64,7 +64,7 @@ If the system was moved and is completely broken:
 1.  **Stop all processes**: Close all CMD windows.
 2.  **Clear Caches**:
     *   Delete `Agra-sandhani/server/node_modules` (If you have internet to re-run `npm install`).
-    *   Delete `smart-office-noting/venv`.
+    *   Delete `Noting_builder/venv`.
 3.  **Run Repair**: Run `PREPARE_ALL_OFFLINE.bat` (needs internet) then `HOST_ON_LAN.bat` (offline).
 
 ---

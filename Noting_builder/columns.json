@@ -1,0 +1,67 @@
+{
+  "tbrl_noting": [
+    "क्र.सं. / S. No.",
+    "पी.आई.एस. नं. / PIS No.",
+    "नाम एवं पद / Name and Design.",
+    "लिंग / Gen.",
+    "डी.ओ.बी. / DOB",
+    "दूरभाष नं. / Contact No.",
+    "द्रोणा ईमेल आईडी / DRONA Email ID",
+    "योग्यता / Qualification",
+    "कार्य का क्षेत्र / Key Function Area"
+  ],
+  "lecture_noting": [
+    "क्र.सं. / S. No.",
+    "पी.आई.एस. नं. / PIS No.",
+    "नाम एवं पद / Name and Design.",
+    "व्याख्यान का विषय / Lecture Title",
+    "स्थान व दिनांक / Place & Date",
+    "दूरभाष नं. / Contact No.",
+    "इंटरनेट व द्रोणा ईमेल / Internet & DRONA Email"
+  ],
+  "dgmss_noting": [
+    "क्र.सं. / S. No.",
+    "पी.आई.एस. नं. / PIS No.",
+    "नाम एवं पद / Name and Design.",
+    "कोर्स का नाम / Course Title",
+    "स्थान / Place/Venue",
+    "दिनांक / Date",
+    "शुल्क / Fee"
+  ],
+  "fee_noting": [
+    "क्र.सं. / S. No.",
+    "पी.आई.एस. नं. / PIS No.",
+    "नाम एवं पद / Name and Design.",
+    "कोर्स का नाम / Course Title",
+    "दिनांक / Date",
+    "योग्यता/डी.ओ.बी./स्थान / Qualification/DOB/Venue",
+    "द्रोणा ईमेल आईडी/दूरभाष नं. / DRONA Email ID/Cont.No",
+    "कार्य का क्षेत्र/शुल्क / Key Function Area/Fee"
+  ],
+  "cancellation_noting": [
+    "क्र.सं. / S. No.",
+    "पी.आई.एस. नं. / PIS No.",
+    "नाम एवं पद / Name and Design.",
+    "कोर्स का नाम / Course Title",
+    "दिनांक / Date",
+    "योग्यता/डी.ओ.बी./स्थान / Qualification/DOB/Venue",
+    "द्रोणा ईमेल आईडी/दूरभाष नं. / DRONA Email ID/Cont.No",
+    "कार्य का क्षेत्र/शुल्क / Key Function Area/Fee"
+  ],
+  "date_amendment_fax": [
+    "क्र.सं. / S. No.",
+    "कोर्स का नाम / Course Name",
+    "प्रयोगशाला / Lab",
+    "माह / Month",
+    "अवधि / Duration",
+    "पात्रता मापदंड / Eligibility Criteria"
+  ],
+  "mayurpankh_erp": [
+    "पी.आई.एस. नं. / PIS No.",
+    "नाम एवं पद / Name and Design.",
+    "डी.ओ.बी. / DOB",
+    "दूरभाष नं. व ईमेल आईडी / Contact No. & Email ID",
+    "योग्यता / Qualification",
+    "कार्य का क्षेत्र / Key Function Area"
+  ]
+}

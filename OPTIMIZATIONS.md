@@ -1,6 +1,6 @@
 # Aeroform Suite: Optimization & Scalability Report
 
-This document outlines the architectural improvements and performance optimizations implemented to ensure the Aeroform Suite (Portal, Agra-sandhani, and smart-office-noting) can scale effectively in a multi-user LAN environment.
+This document outlines the architectural improvements and performance optimizations implemented to ensure the Aeroform Suite (Portal, Agra-sandhani, and Noting_builder) can scale effectively in a multi-user LAN environment.
 
 ## 1. Database Search Performance
 **Cause:**
@@ -19,7 +19,7 @@ Autocomplete searches now perform in **logarithmic time** (Index Scans) rather t
 
 ## 2. Automated Storage Management
 **Cause:**
-The Python backend (`smart-office-noting`) generated MS Word documents for every request but lacked a mechanism to remove them. This created a "Disk Exhaustion" risk where long-term use would eventually fill the server's storage.
+The Python backend (`Noting_builder`) generated MS Word documents for every request but lacked a mechanism to remove them. This created a "Disk Exhaustion" risk where long-term use would eventually fill the server's storage.
 
 **Effect:**
 - Implemented a background `cleanup_task` in `app.py` using Python's `threading` and `time` modules.

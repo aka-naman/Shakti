@@ -5,7 +5,7 @@ AeroForm Suite is an integrated application suite designed for offline, air-gapp
 ## Project Structure
 
 * **Agra-sandhani**: The Form Builder system. It consists of a production-compiled frontend (in `client/dist/`) and a Node.js backend server.
-* **smart-office-noting**: A Flask-based noting engine that runs on Waitress to generate and manage official noting templates and documents.
+* **Noting_builder**: A Flask-based noting engine that generates and manages official noting templates and documents.
 * **Portal**: A unified web portal serving as the main entry point to navigate and access the Form Builder and Noting Engine.
 * **Scripts**:
   * `HOST_ON_LAN.bat`: Launches all three servers (Form Builder, Noting Engine, Portal) on the local network.

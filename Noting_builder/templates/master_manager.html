@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Document Manager</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #333; }
+
+        .header {
+            background: #1a3c6e;
+            color: white;
+            padding: 18px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 20px; }
+        .header p  { font-size: 13px; opacity: 0.8; }
+
+        .header-actions { display: flex; gap: 10px; }
+
+        .btn-header {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .btn-header:hover { background: rgba(255,255,255,0.3); }
+        .btn-lock {
+            background: rgba(204,51,51,0.3);
+            border-color: rgba(255,100,100,0.4);
+        }
+
+        .container { max-width: 900px; margin: 30px auto; padding: 0 20px; }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .card h2 {
+            font-size: 15px;
+            color: #1a3c6e;
+            margin-bottom: 18px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e8edf5;
+        }
+
+        /* Master Cards */
+        .master-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px;
+            border: 1px solid #dde3ed;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            background: #fafbfd;
+        }
+
+        .master-item.is-default {
+            border-color: #2d7a2d;
+            background: #f0fff0;
+        }
+
+        .master-info { display: flex; flex-direction: column; gap: 4px; }
+        .master-name { font-size: 14px; font-weight: 700; color: #1a3c6e; display: flex; align-items: center; }
+        .master-desc { font-size: 12px; color: #666; }
+        .master-meta { font-size: 11px; color: #999; }
+
+        .default-badge {
+            font-size: 11px;
+            background: #e8f4e8;
+            color: #2d7a2d;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        
+        .dynamic-badge {
+            font-size: 11px;
+            background: #e0f2fe;
+            color: #0284c7;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .static-badge {
+            font-size: 11px;
+            background: #f3f4f6;
+            color: #4b5563;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .master-actions { display: flex; gap: 8px; align-items: center; }
+
+        .btn-action {
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+        }
+
+        .btn-download-m { background: #f0f4ff; color: #1a3c6e; border: 1px solid #1a3c6e; }
+        .btn-download-m:hover { background: #1a3c6e; color: white; }
+        .btn-set-default { background: #e8f4e8; color: #2d7a2d; border: 1px solid #2d7a2d; }
+        .btn-set-default:hover { background: #2d7a2d; color: white; }
+        .btn-delete-m { background: #fff0f0; color: #cc3333; border: 1px solid #cc3333; }
+        .btn-delete-m:hover { background: #cc3333; color: white; }
+
+        /* Upload section */
+        .upload-section {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fc;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .upload-section.show { display: block; }
+
+        .upload-section input[type="file"] {
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .btn-upload {
+            padding: 6px 14px;
+            background: #1a3c6e;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* Forms */
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; }
+        label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; }
+        input, select, textarea {
+            padding: 10px 14px;
+            border: 1px solid #dde3ed;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background: #fafbfd;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #1a3c6e;
+        }
+
+        .btn-create {
+            padding: 12px 24px;
+            background: #2d7a2d;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-create:hover { background: #236023; }
+        
+        .btn-dynamic {
+            padding: 12px 24px;
+            background: #0284c7;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-dynamic:hover { background: #0369a1; }
+
+        .info-box {
+            background: #f0f4ff;
+            border: 1px solid #c0cce0;
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 13px;
+            color: #1a3c6e;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            background: #e8f4e8;
+            color: #2d7a2d;
+            border: 1px solid #2d7a2d;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>🗂 Master Document Manager</h1>
+        <p>Manage ION notice master templates</p>
+    </div>
+    <div class="header-actions">
+        <a href="/" class="btn-header">← Dashboard</a>
+        <a href="/masters/lock" class="btn-header btn-lock">🔒 Lock</a>
+    </div>
+</div>
+
+<div class="container">
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-messages">
+        {% for message in messages %}
+          <div class="flash-message">✅ {{ message }}</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <h2>📋 Existing Master Documents</h2>
+
+        <div class="info-box">
+            💡 <strong>How to edit a master:</strong> Download it → Edit in Microsoft Word →
+            Upload the updated file back. The default master cannot be deleted.
+        </div>
+
+        {% for master in masters %}
+        <div class="master-item {% if master.is_default %}is-default{% endif %}">
+            <div class="master-info">
+                <div class="master-name">
+                    {{ master.name }}
+                    
+                    {% if master.form_type == 'dynamic' %}
+                        <span class="dynamic-badge">✨ Dynamic</span>
+                    {% else %}
+                        <span class="static-badge">📄 Static</span>
+                    {% endif %}
+                    
+                    {% if master.is_default %}
+                        <span class="default-badge">✓ Default</span>
+                    {% endif %}
+                </div>
+                <div class="master-desc">{{ master.description }}</div>
+                <div class="master-meta">Created: {{ master.created_at }}</div>
+                
+                <!-- 🚀 AGRA-SANDHANI MAPPING -->
+                <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <label style="font-size: 10px; color: #1a3c6e; margin: 0; min-width: 70px;">DATA SOURCE:</label>
+                        <select class="agra-form-selector" data-master-id="{{ master.id }}" style="font-size: 11px; padding: 4px 8px; width: 220px; border-radius: 4px;">
+                            <option value="">-- No Mapping (Global Default) --</option>
+                            {% if master.agra_form_id %}
+                            <option value="{{ master.agra_form_id }}" selected>Loading name...</option>
+                            {% endif %}
+                        </select>
+                        <button type="button" class="btn-action" style="font-size: 10px; background: #e0edf5; color: #1a3c6e; padding: 2px 8px;" onclick="toggleFieldMap('{{ master.id }}')">⚙️ Edit Field Map</button>
+                        <span class="save-indicator" id="save-{{ master.id }}" style="font-size: 10px; color: #2d7a2d; display: none;">Saved!</span>
+                    </div>
+                    
+                    <div id="field-map-container-{{ master.id }}" style="display: none; padding: 15px; background: #fff; border: 1px solid #c0cce0; border-radius: 8px; margin-top: 10px; width: 100%;">
+                        <label style="font-size: 12px; font-weight: 700; color: #1a3c6e; display: block; margin-bottom: 5px;">Configure Field Mapping / फ़ील्ड मैपिंग</label>
+                        
+                        <!-- Tabs for Import vs Export -->
+                        <div style="display: flex; gap: 10px; margin-bottom: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">
+                            <button type="button" class="tab-btn active" id="tab-import-{{ master.id }}" onclick="switchMappingTab('{{ master.id }}', 'import')" style="border: none; background: none; font-size: 11px; font-weight: bold; color: #1a3c6e; border-bottom: 2px solid #1a3c6e; padding: 4px 8px; cursor: pointer;">
+                                📥 Import Map (Agra ➡️ Noting)
+                            </button>
+                            <button type="button" class="tab-btn" id="tab-export-{{ master.id }}" onclick="switchMappingTab('{{ master.id }}', 'export')" style="border: none; background: none; font-size: 11px; font-weight: bold; color: #666; padding: 4px 8px; cursor: pointer;">
+                                📤 Export Map (Noting ➡️ Agra)
+                            </button>
+                        </div>
+                        
+                        <!-- Import Builder -->
+                        <div id="import-builder-container-{{ master.id }}">
+                            <div style="margin-bottom: 10px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <label style="font-size: 11px; font-weight: bold; color: #1a3c6e; min-width: 90px; white-space: nowrap;">Columns Form:</label>
+                                    <select class="agra-form-selector-import-columns" id="import-columns-form-select-{{ master.id }}" onchange="changeMappingFormId('{{ master.id }}', 'import-columns', this.value)" style="font-size: 11px; padding: 4px; border-radius: 4px; flex: 1; border: 1px solid #c0cce0;">
+                                        <option value="">Loading forms...</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label style="font-size: 11px; font-weight: bold; color: #1a3c6e; min-width: 90px; white-space: nowrap;">Variables Form:</label>
+                                    <select class="agra-form-selector-import-variables" id="import-variables-form-select-{{ master.id }}" onchange="changeMappingFormId('{{ master.id }}', 'import-variables', this.value)" style="font-size: 11px; padding: 4px; border-radius: 4px; flex: 1; border: 1px solid #c0cce0;">
+                                        <option value="">Loading forms...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p style="font-size: 10px; color: #666; margin-bottom: 8px;">Define which form fields are pulled to auto-fill variables during PIS Lookup.</p>
+                            <div id="import-mapping-builder-{{ master.id }}" style="margin-bottom: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #dde3ed; padding: 8px; border-radius: 6px; background: #fbfcfe;">
+                                <div style="font-size: 11px; color: #999; font-style: italic;">Loading fields...</div>
+                            </div>
+                        </div>
+
+                        <!-- Export Builder -->
+                        <div id="export-builder-container-{{ master.id }}" style="display: none;">
+                            <div style="margin-bottom: 10px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <label style="font-size: 11px; font-weight: bold; color: #1a3c6e; min-width: 90px; white-space: nowrap;">Columns Form:</label>
+                                    <select class="agra-form-selector-export-columns" id="export-columns-form-select-{{ master.id }}" onchange="changeMappingFormId('{{ master.id }}', 'export-columns', this.value)" style="font-size: 11px; padding: 4px; border-radius: 4px; flex: 1; border: 1px solid #c0cce0;">
+                                        <option value="">Loading forms...</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <label style="font-size: 11px; font-weight: bold; color: #1a3c6e; min-width: 90px; white-space: nowrap;">Variables Form:</label>
+                                    <select class="agra-form-selector-export-variables" id="export-variables-form-select-{{ master.id }}" onchange="changeMappingFormId('{{ master.id }}', 'export-variables', this.value)" style="font-size: 11px; padding: 4px; border-radius: 4px; flex: 1; border: 1px solid #c0cce0;">
+                                        <option value="">Loading forms...</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p style="font-size: 10px; color: #666; margin-bottom: 8px;">Define how fields of this noting document map to Agra-sandhani form inputs on export.</p>
+                            <div id="export-mapping-builder-{{ master.id }}" style="margin-bottom: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #dde3ed; padding: 8px; border-radius: 6px; background: #fbfcfe;">
+                                <div style="font-size: 11px; color: #999; font-style: italic;">Loading fields...</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+                            <button type="button" class="btn-action" style="background: #f3f4f6; color: #333; padding: 4px 10px;" onclick="toggleFieldMap('{{ master.id }}')">Cancel</button>
+                            <button type="button" class="btn-upload" style="margin-top: 0; padding: 4px 12px; font-size: 11px;" onclick="saveSeparateFieldMaps('{{ master.id }}')">💾 Save Mappings</button>
+                        </div>
+                        
+                        <input type="hidden" id="variables-data-{{ master.id }}" value='{{ (master.variables or []) | tojson }}'>
+                        <input type="hidden" id="nominee-columns-{{ master.id }}" value='{{ (master.nominee_columns or []) | tojson }}'>
+                        <input type="hidden" id="agra-import-form-id-{{ master.id }}" value="{{ master.agra_import_form_id or master.agra_form_id or '' }}">
+                        <input type="hidden" id="agra-export-form-id-{{ master.id }}" value="{{ master.agra_export_form_id or master.agra_form_id or '' }}">
+                        <input type="hidden" id="agra-import-columns-form-id-{{ master.id }}" value="{{ master.agra_import_columns_form_id or master.agra_import_form_id or master.agra_form_id or '' }}">
+                        <input type="hidden" id="agra-import-variables-form-id-{{ master.id }}" value="{{ master.agra_import_variables_form_id or master.agra_import_form_id or master.agra_form_id or '' }}">
+                        <input type="hidden" id="agra-export-columns-form-id-{{ master.id }}" value="{{ master.agra_export_columns_form_id or master.agra_export_form_id or master.agra_form_id or '' }}">
+                        <input type="hidden" id="agra-export-variables-form-id-{{ master.id }}" value="{{ master.agra_export_variables_form_id or master.agra_export_form_id or master.agra_form_id or '' }}">
+                        <textarea id="import-map-{{ master.id }}" style="display: none;">{{ (master.import_map or master.field_map or {}) | tojson }}</textarea>
+                        <textarea id="export-map-{{ master.id }}" style="display: none;">{{ (master.export_map or master.field_map or {}) | tojson }}</textarea>
+                    </div>
+                </div>
+
+                <div class="upload-section" id="upload-{{ master.id }}">
+                    <form action="/masters/upload/{{ master.id }}" method="POST"
+                          enctype="multipart/form-data">
+                        <input type="file" name="file" accept=".docx" required>
+                        <button type="submit" class="btn-upload">📤 Upload Updated Master</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="master-actions">
+                <a href="/masters/download/{{ master.id }}" class="btn-action btn-download-m">
+                    📥 Download
+                </a>
+
+                <button type="button" class="btn-action btn-download-m"
+                        onclick="toggleUpload('{{ master.id }}')">
+                    📤 Upload Edit
+                </button>
+
+                <form action="/masters/toggle-default/{{ master.id }}" method="POST">
+                    {% if master.is_default %}
+                    <button type="submit" class="btn-action btn-delete-m">❌ Remove Default</button>
+                    {% else %}
+                    <button type="submit" class="btn-action btn-set-default">⭐ Set Default</button>
+                    {% endif %}
+                </form>
+
+                {% if not master.is_default %}
+                <form id="delete-form-{{ master.id }}" action="/masters/delete/{{ master.id }}" method="POST">
+                    <input type="hidden" name="confirm_password" id="delete-pwd-{{ master.id }}" value="">
+                    
+                    <button type="button" class="btn-action btn-delete-m"
+                            onclick="promptDelete('{{ master.id }}', '{{ master.name }}')">
+                        🗑 Delete
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="card" style="border: 2px solid #0284c7;">
+        <h2 style="color: #0284c7; border-bottom-color: #e0f2fe;">✨ Upload Dynamic Master (Code-Free)</h2>
+        <p style="font-size:13px; color:#666; margin-bottom:18px;">
+            Upload a brand new Word document (<code>.docx</code>) containing custom variables wrapped in curly braces (e.g., <b>{{employee_name}}</b> or <b>{{joining_date}}</b>). The system will automatically extract the variables and build a custom web form for it.
+        </p>
+
+        <form action="/masters/upload-new" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>Template Name *</label>
+                <input type="text" name="name" placeholder="e.g. Employee Joining Letter" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" placeholder="Brief description of this form's purpose...">
+            </div>
+            <div class="form-group">
+                <label>Target Module *</label>
+                <select name="module" required style="padding: 10px 14px; border: 1px solid #dde3ed; border-radius: 6px; font-size: 14px; background: #fafbfd;">
+                    <option value="training">Training Module / प्रशिक्षण</option>
+                    <option value="internship">Internship Module / इंटर्नशिप</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Target Sub-Module *</label>
+                <select name="sub_module" required style="padding: 10px 14px; border: 1px solid #dde3ed; border-radius: 6px; font-size: 14px; background: #fafbfd;">
+                    <option value="noting">Noting Forms / नोटिंग प्रपत्र</option>
+                    <option value="fax_mail">Fax & Mail Correspondence / फैक्स और मेल</option>
+                    <option value="general">General Internship Forms / सामान्य इंटर्नशिप</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Upload Document (.docx) *</label>
+                <input type="file" name="file" accept=".docx" required style="padding: 6px 10px;">
+            </div>
+
+            <button type="submit" class="btn-dynamic">✨ Extract Variables & Create Form</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>➕ Create New Static Master (From Existing)</h2>
+        <p style="font-size:13px; color:#666; margin-bottom:18px;">
+            This will copy an existing master as a starting point.
+            Download it, edit in Word, then upload back.
+        </p>
+
+        <form action="/masters/create" method="POST">
+            <div class="form-group">
+                <label>Base this on *</label>
+                <select name="source_id" required>
+                    {% for master in masters %}
+                    <option value="{{ master.id }}">{{ master.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>New Master Name *</label>
+                <input type="text" name="name"
+                       placeholder="e.g. Hindi Only ION Notice" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description"
+                       placeholder="e.g. ION notice template in Hindi only">
+            </div>
+            <button type="submit" class="btn-create">➕ Create New Master</button>
+        </form>
+    </div>
+
+</div>
+
+<script>
+    function toggleUpload(masterId) {
+        const el = document.getElementById('upload-' + masterId);
+        el.classList.toggle('show');
+    }
+
+    // NEW: Double-layer security prompt for deletion
+    function promptDelete(masterId, masterName) {
+        // ... rest of code
+    }
+
+    // 🚀 INTEGRATION: Agra-sandhani Discovery
+    document.addEventListener('DOMContentLoaded', async () => {
+        const selectors = document.querySelectorAll('.agra-form-selector');
+        const importSelectors = document.querySelectorAll('.agra-form-selector-import');
+        const exportSelectors = document.querySelectorAll('.agra-form-selector-export');
+        
+        try {
+            const res = await fetch('/api/agra_forms');
+            const data = await res.json();
+            
+            if (data.error) throw new Error(data.error);
+            const forms = data.forms || [];
+            
+            // 1. Populate global default source selectors
+            selectors.forEach(sel => {
+                const currentId = sel.value;
+                sel.innerHTML = '<option value="">-- No Mapping (Global Default) --</option>';
+                
+                if (forms.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.disabled = true;
+                    opt.textContent = "No forms found in Agra-sandhani";
+                    sel.appendChild(opt);
+                }
+
+                forms.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f.id;
+                    opt.textContent = `${f.name} (ID: ${f.id})`;
+                    if (f.id.toString() === currentId) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+
+                sel.onchange = async () => {
+                    const masterId = sel.getAttribute('data-master-id');
+                    const agraId = sel.value;
+                    
+                    try {
+                        const response = await fetch('/masters/update_mapping', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ master_id: masterId, agra_form_id: agraId })
+                        });
+                        
+                        if (response.ok) {
+                            const indicator = document.getElementById('save-' + masterId);
+                            indicator.style.display = 'inline';
+                            setTimeout(() => indicator.style.display = 'none', 2000);
+                        }
+                    } catch (e) {
+                        alert('Error updating mapping: ' + e.message);
+                    }
+                };
+            });
+
+            // 2. Populate sub-selectors inside Mapping tab builder
+            const importColumnsSelectors = document.querySelectorAll('.agra-form-selector-import-columns');
+            const importVariablesSelectors = document.querySelectorAll('.agra-form-selector-import-variables');
+            const exportColumnsSelectors = document.querySelectorAll('.agra-form-selector-export-columns');
+            const exportVariablesSelectors = document.querySelectorAll('.agra-form-selector-export-variables');
+
+            const populateTabSelectors = (elements, inputPrefix) => {
+                elements.forEach(sel => {
+                    const masterId = sel.id.split('-').pop();
+                    const currentId = document.getElementById(inputPrefix + masterId).value;
+
+                    sel.innerHTML = '<option value="">-- Select Form --</option>';
+                    forms.forEach(f => {
+                        const opt = document.createElement('option');
+                        opt.value = f.id;
+                        opt.textContent = `${f.name} (ID: ${f.id})`;
+                        if (f.id.toString() === currentId) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                });
+            };
+
+            populateTabSelectors(importColumnsSelectors, 'agra-import-columns-form-id-');
+            populateTabSelectors(importVariablesSelectors, 'agra-import-variables-form-id-');
+            populateTabSelectors(exportColumnsSelectors, 'agra-export-columns-form-id-');
+            populateTabSelectors(exportVariablesSelectors, 'agra-export-variables-form-id-');
+
+        } catch (e) {
+            console.error('Failed to load Agra-sandhani forms:', e);
+            selectors.forEach(sel => {
+                sel.innerHTML = '<option value="">⚠️ Connection Error (Check Server)</option>';
+                sel.style.borderColor = '#cc3333';
+                sel.style.color = '#cc3333';
+            });
+        }
+    });
+
+    window.notingColumns = window.notingColumns || {};
+    window.notingVariables = window.notingVariables || {};
+
+    function switchMappingTab(masterId, type) {
+        const importBtn = document.getElementById('tab-import-' + masterId);
+        const exportBtn = document.getElementById('tab-export-' + masterId);
+        const importContainer = document.getElementById('import-builder-container-' + masterId);
+        const exportContainer = document.getElementById('export-builder-container-' + masterId);
+        
+        if (type === 'import') {
+            importBtn.style.color = '#1a3c6e';
+            importBtn.style.borderBottom = '2px solid #1a3c6e';
+            exportBtn.style.color = '#666';
+            exportBtn.style.borderBottom = 'none';
+            importContainer.style.display = 'block';
+            exportContainer.style.display = 'none';
+        } else {
+            exportBtn.style.color = '#1a3c6e';
+            exportBtn.style.borderBottom = '2px solid #1a3c6e';
+            importBtn.style.color = '#666';
+            importBtn.style.borderBottom = 'none';
+            importContainer.style.display = 'none';
+            exportContainer.style.display = 'block';
+        }
+    }
+
+    function changeMappingFormId(masterId, type, formId) {
+        document.getElementById(`agra-${type}-form-id-${masterId}`).value = formId;
+        renderMappingUI(masterId);
+    }
+
+    async function toggleFieldMap(masterId) {
+        const el = document.getElementById('field-map-container-' + masterId);
+        const isOpening = el.style.display === 'none';
+        el.style.display = isOpening ? 'block' : 'none';
+        
+        if (isOpening) {
+            // Default to import tab on open
+            switchMappingTab(masterId, 'import');
+
+            // 🧠 Load columns list dynamically for this specific master
+            const legacyDefaults = {
+                "master_tbrl_001": ["PIS n.", "Name & Design.", "Gen.", "DOB", "Cont.No.", "DRONA Email ID", "Qualification", "Key Function Area"],
+                "master_tbrl_002": ["Name & Design.", "Lecture Topic", "Place & Date", "Phone No.", "Internet & DRONA Email"],
+                "master_tbrl_003": ["PIS n.", "Name & Design.", "Course Title", "DRONA Email ID", "Cont.No.", "Key Function Area", "Period", "Qualification/Gen/DOB"],
+                "master_tbrl_004": ["PIS n.", "Name & Design.", "Course Title", "Org. Institute", "Period", "FEE", "DRONA Email ID/Cont.No."],
+                "master_tbrl_005": ["PIS n.", "Name & Design.", "Course Title", "Date", "Qualification/DOB/Venue", "DRONA Email ID/Cont.No", "Key Function Area/Fee"]
+            };
+
+            let columns = [];
+            try {
+                columns = JSON.parse(document.getElementById('nominee-columns-' + masterId).value || '[]');
+            } catch(e) {}
+            
+            if (columns.length === 0) {
+                columns = legacyDefaults[masterId] || ["PIS n.", "Name & Design.", "DRONA Email ID", "Cont.No."];
+            }
+
+            let variables = [];
+            try {
+                variables = JSON.parse(document.getElementById('variables-data-' + masterId).value || '[]');
+            } catch(e) {}
+
+            // Load current mappings to extract any custom mapped columns/variables
+            const currentImportMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+            const currentExportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+            const currentMappedKeys = [...Object.keys(currentImportMap), ...Object.keys(currentExportMap)];
+
+            // Store uniquely in global registries
+            window.notingVariables[masterId] = Array.from(new Set([...variables]));
+
+            // Filter columns to not include variables
+            const filteredColumns = columns.filter(c => !window.notingVariables[masterId].includes(c));
+            const extraMappedColumns = currentMappedKeys.filter(k => !window.notingVariables[masterId].includes(k));
+
+            window.notingColumns[masterId] = Array.from(new Set([...filteredColumns, ...extraMappedColumns]));
+
+            // Render mapping lists
+            renderMappingUI(masterId);
+        }
+    }
+
+    window.fieldsCache = window.fieldsCache || {};
+
+    async function renderMappingUI(masterId) {
+        const agraImportColumnsId = document.getElementById('agra-import-columns-form-id-' + masterId).value;
+        const agraImportVariablesId = document.getElementById('agra-import-variables-form-id-' + masterId).value;
+        const agraExportColumnsId = document.getElementById('agra-export-columns-form-id-' + masterId).value;
+        const agraExportVariablesId = document.getElementById('agra-export-variables-form-id-' + masterId).value;
+        
+        const columns = window.notingColumns[masterId] || [];
+        const variables = window.notingVariables[masterId] || [];
+
+        const currentImportMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+        const currentExportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+
+        const fetchFields = async (formId) => {
+            if (!formId) return [];
+            if (window.fieldsCache[formId]) return window.fieldsCache[formId];
+            try {
+                const res = await fetch(`/api/agra_form_fields/${formId}`);
+                const data = await res.json();
+                if (!data.error && data.fields) {
+                    window.fieldsCache[formId] = data.fields;
+                    return data.fields;
+                }
+            } catch (e) {
+                console.error('Error fetching fields:', e);
+            }
+            return [];
+        };
+
+        const fetchAndRender = async (columnsFormId, variablesFormId, mapType, currentMap) => {
+            const builderEl = document.getElementById(`${mapType}-mapping-builder-${masterId}`);
+            if (!columnsFormId && !variablesFormId) {
+                builderEl.innerHTML = `
+                    <div style="font-size: 11px; color: #888; padding: 12px; background: #f9f9f9; border-radius: 4px; border: 1px dashed #ccc; text-align: center;">
+                        ⚠️ Please select columns or variables forms above to load fields.
+                    </div>
+                `;
+                return;
+            }
+            try {
+                const columnsFields = await fetchFields(columnsFormId);
+                const variablesFields = await fetchFields(variablesFormId);
+                
+                let html = `
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #dde3ed; background: #f0f4ff;">
+                                <th style="padding: 6px 6px; color: #1a3c6e; width: 45%;">Noting Field / Column</th>
+                                <th style="padding: 6px 6px; color: #1a3c6e; width: 50%;">Agra-sandhani Form Field</th>
+                                <th style="padding: 6px 6px; width: 5%; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                if (columns.length > 0) {
+                    html += `
+                        <tr style="background: #f4f7fc;">
+                            <td colspan="3" style="padding: 6px 6px; font-weight: bold; color: #1a3c6e; font-size: 10px;">
+                                📋 TABLE COLUMNS / तालिका कॉलम (Form ID: ${columnsFormId || 'None'})
+                            </td>
+                        </tr>
+                    `;
+                    columns.forEach(v => {
+                        const mappedValue = currentMap[v] || '';
+                        html += `
+                            <tr style="border-bottom: 1px solid #f0f2f5;">
+                                <td style="padding: 6px 6px; font-weight: 600; color: #333;">
+                                    ${v}
+                                    <span style="font-size: 9px; background: #e0edf5; color: #1a3c6e; padding: 1px 4px; border-radius: 3px; margin-left: 5px;">Column</span>
+                                </td>
+                                <td style="padding: 4px 6px;">
+                                    <select class="map-dropdown-${mapType}-${masterId}" data-noting-var="${v}" style="width: 100%; padding: 4px; font-size: 11px; border-radius: 4px; border: 1px solid #dde3ed; background: #fff;">
+                                        <option value="">-- Unmapped --</option>
+                                        ${columnsFields.map(f => `
+                                            <option value="${f.label}" ${f.label === mappedValue ? 'selected' : ''}>
+                                                ${f.label} (${f.type})
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </td>
+                                <td style="padding: 4px 6px; text-align: center;">
+                                    <button type="button" onclick="removeColumnFromMapping('${masterId}', '${v}')" style="background: none; border: none; color: #cc3333; cursor: pointer; font-size: 13px; font-weight: bold;" title="Remove Column">×</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+                
+                if (variables.length > 0) {
+                    html += `
+                        <tr style="background: #fcf8f2; border-top: 1px solid #dde3ed;">
+                            <td colspan="3" style="padding: 6px 6px; font-weight: bold; color: #8a6d3b; font-size: 10px;">
+                                ⚙️ NOTING INPUTS & VARIABLES / नोटिंग चर व इनपुट (Form ID: ${variablesFormId || 'None'})
+                            </td>
+                        </tr>
+                    `;
+                    variables.forEach(v => {
+                        const mappedValue = currentMap[v] || '';
+                        html += `
+                            <tr style="border-bottom: 1px solid #f0f2f5;">
+                                <td style="padding: 6px 6px; font-weight: 600; color: #333;">
+                                    {{ '{{' }}${v}{{ '}}' }}
+                                    <span style="font-size: 9px; background: #fff0f5; color: #c71585; padding: 1px 4px; border-radius: 3px; margin-left: 5px;">Variable</span>
+                                </td>
+                                <td style="padding: 4px 6px;">
+                                    <select class="map-dropdown-${mapType}-${masterId}" data-noting-var="${v}" style="width: 100%; padding: 4px; font-size: 11px; border-radius: 4px; border: 1px solid #dde3ed; background: #fff;">
+                                        <option value="">-- Unmapped --</option>
+                                        ${variablesFields.map(f => `
+                                            <option value="${f.label}" ${f.label === mappedValue ? 'selected' : ''}>
+                                                ${f.label} (${f.type})
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </td>
+                                <td style="padding: 4px 6px; text-align: center;">
+                                    <button type="button" onclick="removeVariableMapping('${masterId}', '${v}')" style="background: none; border: none; color: #cc3333; cursor: pointer; font-size: 13px; font-weight: bold;" title="Unmap Variable">×</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+                
+                html += `
+                        <tr style="background: #fbfcfe; border-top: 1px solid #dde3ed;">
+                            <td style="padding: 8px 6px;" colspan="2">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="new-col-input-${mapType}-${masterId}" placeholder="Add custom column (e.g., Blood Group)" style="flex: 1; padding: 4px 6px; font-size: 11px; border: 1px solid #dde3ed; border-radius: 4px;">
+                                    <button type="button" class="btn-upload" onclick="addNewColumnToMapping('${masterId}', '${mapType}')" style="margin-top: 0; padding: 4px 10px; font-size: 11px; background: #e0edf5; color: #1a3c6e; border: none;">➕ Add</button>
+                                </div>
+                            </td>
+                            <td></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                `;
+                builderEl.innerHTML = html;
+            } catch (e) {
+                builderEl.innerHTML = `
+                    <div style="font-size: 11px; color: #cc3333; padding: 10px; background: #fff0f0; border-radius: 4px; border: 1px solid #ffcccc;">
+                        ⚠️ Failed to fetch form fields: ${e.message}
+                    </div>
+                `;
+            }
+        };
+
+        await fetchAndRender(agraImportColumnsId, agraImportVariablesId, 'import', currentImportMap);
+        await fetchAndRender(agraExportColumnsId, agraExportVariablesId, 'export', currentExportMap);
+    }
+
+    function addNewColumnToMapping(masterId, mapType) {
+        const input = document.getElementById(`new-col-input-${mapType}-${masterId}`);
+        const colName = input.value.trim();
+        if (!colName) return;
+        
+        window.notingColumns[masterId] = window.notingColumns[masterId] || [];
+        if (!window.notingColumns[masterId].includes(colName)) {
+            window.notingColumns[masterId].push(colName);
+        }
+        
+        input.value = '';
+        renderMappingUI(masterId);
+    }
+
+    function removeColumnFromMapping(masterId, colName) {
+        if (!confirm(`Are you sure you want to remove "${colName}" from the mapping list?`)) return;
+        
+        window.notingColumns[masterId] = window.notingColumns[masterId] || [];
+        window.notingColumns[masterId] = window.notingColumns[masterId].filter(c => c !== colName);
+        
+        const importMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+        const exportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+        delete importMap[colName];
+        delete exportMap[colName];
+        
+        document.getElementById('import-map-' + masterId).value = JSON.stringify(importMap);
+        document.getElementById('export-map-' + masterId).value = JSON.stringify(exportMap);
+        
+        renderMappingUI(masterId);
+    }
+
+    function removeVariableMapping(masterId, varName) {
+        if (!confirm(`Are you sure you want to remove mapping for "${varName}"?`)) return;
+        
+        const importMap = JSON.parse(document.getElementById('import-map-' + masterId).value || '{}');
+        const exportMap = JSON.parse(document.getElementById('export-map-' + masterId).value || '{}');
+        delete importMap[varName];
+        delete exportMap[varName];
+        
+        document.getElementById('import-map-' + masterId).value = JSON.stringify(importMap);
+        document.getElementById('export-map-' + masterId).value = JSON.stringify(exportMap);
+        
+        renderMappingUI(masterId);
+    }
+ 
+    async function saveSeparateFieldMaps(masterId) {
+        const importDropdowns = document.querySelectorAll(`.map-dropdown-import-${masterId}`);
+        const exportDropdowns = document.querySelectorAll(`.map-dropdown-export-${masterId}`);
+        
+        const importMap = {};
+        const exportMap = {};
+        
+        importDropdowns.forEach(sel => {
+            const v = sel.getAttribute('data-noting-var');
+            const targetField = sel.value;
+            if (targetField) importMap[v] = targetField;
+        });
+
+        exportDropdowns.forEach(sel => {
+            const v = sel.getAttribute('data-noting-var');
+            const targetField = sel.value;
+            if (targetField) exportMap[v] = targetField;
+        });
+
+        const nomineeColumns = window.notingColumns[masterId] || [];
+        const agraImportColumnsId = document.getElementById('agra-import-columns-form-id-' + masterId).value;
+        const agraImportVariablesId = document.getElementById('agra-import-variables-form-id-' + masterId).value;
+        const agraExportColumnsId = document.getElementById('agra-export-columns-form-id-' + masterId).value;
+        const agraExportVariablesId = document.getElementById('agra-export-variables-form-id-' + masterId).value;
+
+        try {
+            const response = await fetch('/masters/update_mapping', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    master_id: masterId, 
+                    import_map: importMap,
+                    export_map: exportMap,
+                    nominee_columns: nomineeColumns,
+                    agra_import_columns_form_id: agraImportColumnsId,
+                    agra_import_variables_form_id: agraImportVariablesId,
+                    agra_export_columns_form_id: agraExportColumnsId,
+                    agra_export_variables_form_id: agraExportVariablesId
+                })
+            });
+            
+            if (response.ok) {
+                const indicator = document.getElementById('save-' + masterId);
+                indicator.style.display = 'inline';
+                setTimeout(() => indicator.style.display = 'none', 2000);
+                
+                document.getElementById('import-map-' + masterId).value = JSON.stringify(importMap);
+                document.getElementById('export-map-' + masterId).value = JSON.stringify(exportMap);
+                document.getElementById('nominee-columns-' + masterId).value = JSON.stringify(nomineeColumns);
+                document.getElementById('agra-import-columns-form-id-' + masterId).value = agraImportColumnsId;
+                document.getElementById('agra-import-variables-form-id-' + masterId).value = agraImportVariablesId;
+                document.getElementById('agra-export-columns-form-id-' + masterId).value = agraExportColumnsId;
+                document.getElementById('agra-export-variables-form-id-' + masterId).value = agraExportVariablesId;
+                
+                toggleFieldMap(masterId);
+            } else {
+                alert('Failed to save mapping');
+            }
+        } catch (e) {
+            alert('Error updating mapping: ' + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "agra-portal",
   "version": "1.0.0",
-  "description": "Unified LAN Portal for Agra-sandhani and Smart Office Noting",
+  "description": "Unified LAN Portal for Agra-sandhani and Noting Builder",
   "main": "server.js",
   "dependencies": {
     "express": "^4.18.2"

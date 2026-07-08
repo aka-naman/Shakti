@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Training Nomination & Notice Generation{% endblock %} - AeroForm Automatrix</title>
+  <meta name="description" content="Official document template manager and generator - TBRL HRD Division.">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="shortcut icon" href="#" />
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-container">
+      <div class="logo-section">
+        <div class="logo-icon">
+          <!-- Shield & Technical Flight SVG Logo -->
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5zm0 2.18l7 3.89v5.93c0 4.62-3.13 8.93-7 10.05-3.87-1.12-7-5.43-7-10.05V8.07l7-3.89z" fill="#002D62"/>
+            <path d="M12 6l-4 4h3v6h2v-6h3l-4-4z" fill="#C5A059"/>
+          </svg>
+        </div>
+        <div class="logo-text">
+          <h1>प्रशिक्षण एवं सूचना जनरेटर</h1>
+          <span>AeroForm Automatrix — TBRL</span>
+        </div>
+      </div>
+      <nav>
+        <ul>
+          <li class="{% if request.path == '/' %}active{% endif %}"><a href="{{ url_for('index') }}">Dashboard</a></li>
+          <li class="{% if request.path.startswith('/training') %}active{% endif %}"><a href="{{ url_for('training_menu') }}">Training Module</a></li>
+          <li class="{% if request.path.startswith('/internship') %}active{% endif %}"><a href="{{ url_for('internship_menu') }}">Internship Module</a></li>
+          <li><a href="{{ url_for('masters_page') }}" class="btn-master">🔒 Manage Masters</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="container" style="margin-top: 1.5rem; margin-bottom: 0;">
+        {% for message in messages %}
+          <div class="flash-message {% if 'Incorrect' in message or 'Error' in message or 'cancelled' in message %}flash-error{% else %}flash-success{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Main Content -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+
+
+  <script>
+    // Global helper for formatting dates in headers
+    document.addEventListener('DOMContentLoaded', () => {
+      const dateBadge = document.getElementById('currentDate');
+      if (dateBadge) {
+        const now = new Date();
+        dateBadge.textContent = now.toLocaleDateString('en-IN', { 
+          weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
+        });
+      }
+    });
+  </script>
+  <script src="{{ url_for('static', filename='js/pis_bridge.js') }}"></script>
+  {% if import_map is defined %}
+  <script>
+    // Global export functions called by buttons
+    function exportNominee(rowIndex) {
+        if (typeof saveInputsState === 'function') {
+            try { saveInputsState(); } catch(e) {}
+        }
+        
+        let rowData = {};
+        if (typeof nomineeData !== 'undefined' && nomineeData[rowIndex]) {
+            rowData = nomineeData[rowIndex];
+        } else if (typeof rowsData !== 'undefined' && rowsData[rowIndex]) {
+            rowData = rowsData[rowIndex];
+        } else if (typeof trainees !== 'undefined' && trainees[rowIndex]) {
+            rowData = trainees[rowIndex];
+        } else {
+            // Scrape row from DOM inputs
+            document.querySelectorAll(`input[data-row="${rowIndex}"], textarea[data-row="${rowIndex}"]`).forEach(input => {
+                const colName = input.getAttribute('data-col') || input.id || input.name;
+                if (colName) {
+                    rowData[colName] = input.value;
+                }
+            });
+        }
+        
+        if (typeof PISBridge !== 'undefined') {
+            PISBridge.exportToForm(rowData);
+        }
+    }
+
+    function exportVariablesOnly() {
+        if (typeof saveInputsState === 'function') {
+            try { saveInputsState(); } catch(e) {}
+        }
+        if (typeof PISBridge !== 'undefined') {
+            PISBridge.exportVariablesOnly();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (typeof PISBridge !== 'undefined') {
+            const importMap = JSON.parse('{{ import_map | safe }}' || '{}');
+            const exportMap = JSON.parse('{{ export_map | safe }}' || '{}');
+            const importFormId = '{{ agra_import_form_id or "" }}';
+            const exportFormId = '{{ agra_export_form_id or "" }}';
+            
+            // 1. Inject status bar dynamically if missing
+            const formContainer = document.querySelector('.form-container');
+            if (formContainer && !document.getElementById('integration-status')) {
+                const statusDiv = document.createElement('div');
+                statusDiv.id = 'integration-status';
+                statusDiv.title = 'Agra-sandhani Connection';
+                statusDiv.style.cssText = 'display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; font-weight: 600; padding: 4px 10px; border-radius: 12px; background: #f0f2f5; color: #666; margin-bottom: 15px; margin-top: 5px;';
+                statusDiv.innerHTML = `
+                    <span id="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #ccc;"></span>
+                    <span id="status-text">Checking connection...</span>
+                `;
+                formContainer.parentNode.insertBefore(statusDiv, formContainer);
+            }
+
+
+            // 2. Initialize Bridge
+            PISBridge.init({ 
+                importMap: importMap,
+                exportMap: exportMap,
+                agraImportFormId: importFormId,
+                agraExportFormId: exportFormId,
+                agraImportColumnsFormId: '{{ agra_import_columns_form_id or "" }}',
+                agraImportVariablesFormId: '{{ agra_import_variables_form_id or "" }}',
+                agraExportColumnsFormId: '{{ agra_export_columns_form_id or "" }}',
+                agraExportVariablesFormId: '{{ agra_export_variables_form_id or "" }}',
+                statusId: 'integration-status'
+            });
+
+            // 3. Scan and attach to main plain form inputs
+            const activeForm = document.getElementById('notingForm') || 
+                               document.getElementById('erpForm') || 
+                               document.getElementById('template-generation-form') || 
+                               document.querySelector('form');
+            if (activeForm) {
+                PISBridge.attachToPlainForm(activeForm);
+            }
+
+            // 4. Inject Export Variables button next to the submit button
+            const submitBtn = document.querySelector('button[type="submit"]');
+            if (submitBtn && submitBtn.parentElement && !document.getElementById('btn-export-variables')) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.id = 'btn-export-variables';
+                btn.className = 'btn';
+                btn.style.cssText = 'background: #2d7a2d; color: #fff; display: inline-flex; align-items: center; gap: 0.5rem; border: none; font-weight: 600; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; margin-right: 1rem;';
+                btn.innerHTML = `
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px; vertical-align: middle;">
+                        <polyline points="17 1 21 5 17 9"></polyline>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                        <polyline points="7 23 3 19 7 15"></polyline>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+                    </svg>
+                    Export variables / वैरिएबल्स निर्यात करें
+                `;
+                btn.onclick = () => {
+                    exportVariablesOnly();
+                };
+                submitBtn.parentElement.insertBefore(btn, submitBtn);
+            }
+
+            // 5. Wrap-override renderTable to inject row-wise export buttons
+            if (typeof window.renderTable === 'function') {
+                const originalRenderTable = window.renderTable;
+                window.renderTable = function(...args) {
+                    originalRenderTable(...args);
+                    
+                    const tbody = document.querySelector('tbody');
+                    if (tbody) {
+                        const rows = tbody.querySelectorAll('tr');
+                        rows.forEach((tr, rowIndex) => {
+                            const actionTd = tr.lastElementChild;
+                            if (actionTd && !actionTd.querySelector('.btn-export-row')) {
+                                const exportBtn = document.createElement('button');
+                                exportBtn.type = 'button';
+                                exportBtn.className = 'btn btn-link link-success p-0 btn-export-row';
+                                exportBtn.title = 'Export Nominee to Form';
+                                exportBtn.style.cssText = 'font-size: 1.15rem; text-decoration: none; margin-right: 8px; border: none; background: transparent; cursor: pointer;';
+                                exportBtn.innerHTML = '📤';
+                                exportBtn.onclick = (e) => {
+                                    e.stopPropagation();
+                                    exportNominee(rowIndex);
+                                };
+                                actionTd.insertBefore(exportBtn, actionTd.firstChild);
+                            }
+                        });
+                    }
+                };
+                // Initial run to apply buttons
+                window.renderTable();
+            }
+        }
+    });
+
+    // 6. Dynamic event delegation for focusin to hook autocomplete to dynamic inputs
+    document.addEventListener('focusin', (e) => {
+        const input = e.target;
+        if (input.tagName === 'INPUT' && (input.classList.contains('nominee-cell-input') || input.classList.contains('cell-input-erp') || input.type === 'text')) {
+            const colName = input.getAttribute('data-col') || input.id || input.name;
+            if (typeof PISBridge !== 'undefined' && PISBridge.isTriggerField(colName) && !input.classList.contains('pis-input')) {
+                console.log('[PIS Bridge] Dynamic attach on focus to:', colName);
+                PISBridge.attachToInput(input);
+                input.dispatchEvent(new Event('focus'));
+            }
+        }
+    });
+  </script>
+  {% endif %}
+  {% block scripts %}{% endblock %}
+
+
+
+  <!-- Edit Template Modal -->
+  <div id="editTemplateModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="modal-card" style="background: white; padding: 2rem; border-radius: 8px; width: 450px; max-width: 90%; box-shadow: 0 4px 20px rgba(0,0,0,0.15); box-sizing: border-box;">
+      <h3 style="margin-top: 0; color: #1a3c6e; border-bottom: 2px solid #e8edf5; padding-bottom: 0.5rem; margin-bottom: 1.5rem; font-size: 1.15rem; font-weight: 700;">✏️ Edit Template Info</h3>
+      
+      <div id="modal-error" style="display: none; background: #fee2e2; color: #991b1b; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem; font-weight: 600;"></div>
+      
+      <input type="hidden" id="edit-template-id">
+      
+      <div style="margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.25rem;">
+        <label style="font-size: 0.75rem; font-weight: 700; color: #666; text-transform: uppercase;">Admin Password *</label>
+        <input type="password" id="edit-template-password" style="width: 100%; padding: 0.75rem; border: 1px solid #dde3ed; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;" placeholder="Enter password to authorize changes">
+      </div>
+      
+      <div style="margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.25rem;">
+        <label style="font-size: 0.75rem; font-weight: 700; color: #666; text-transform: uppercase;">Template Name *</label>
+        <input type="text" id="edit-template-name" style="width: 100%; padding: 0.75rem; border: 1px solid #dde3ed; border-radius: 6px; font-size: 0.9rem; box-sizing: border-box;">
+      </div>
+      
+      <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; gap: 0.25rem;">
+        <label style="font-size: 0.75rem; font-weight: 700; color: #666; text-transform: uppercase;">Description</label>
+        <textarea id="edit-template-desc" rows="3" style="width: 100%; padding: 0.75rem; border: 1px solid #dde3ed; border-radius: 6px; font-size: 0.9rem; resize: vertical; font-family: inherit; box-sizing: border-box;"></textarea>
+      </div>
+      
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeEditModal()" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: 1px solid #dde3ed; background: #f9fafb; color: #4b5563;">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitEditModal()" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; border: none; background: #0284c7; color: white;">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function promptEditDetails(id, name, desc) {
+      document.getElementById('edit-template-id').value = id;
+      document.getElementById('edit-template-password').value = '';
+      document.getElementById('edit-template-name').value = name;
+      document.getElementById('edit-template-desc').value = desc;
+      document.getElementById('modal-error').style.display = 'none';
+      
+      const modal = document.getElementById('editTemplateModal');
+      modal.style.display = 'flex';
+    }
+    
+    function closeEditModal() {
+      document.getElementById('editTemplateModal').style.display = 'none';
+    }
+    
+    async function submitEditModal() {
+      const id = document.getElementById('edit-template-id').value;
+      const pwd = document.getElementById('edit-template-password').value;
+      const name = document.getElementById('edit-template-name').value.trim();
+      const desc = document.getElementById('edit-template-desc').value.trim();
+      const errBox = document.getElementById('modal-error');
+      
+      if (!pwd) {
+        errBox.textContent = '❌ Admin password is required.';
+        errBox.style.display = 'block';
+        return;
+      }
+      if (!name) {
+        errBox.textContent = '❌ Template name cannot be empty.';
+        errBox.style.display = 'block';
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('password', pwd);
+      formData.append('name', name);
+      formData.append('description', desc);
+      
+      try {
+        const response = await fetch(`/masters/edit-details/${id}`, {
+          method: 'POST',
+          body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          closeEditModal();
+          // Reload the templates list dynamically if active link exists
+          const activeLink = document.querySelector('.sidebar-link.active');
+          if (activeLink) {
+            // Re-trigger click to load new templates list dynamically
+            activeLink.click();
+          } else {
+            window.location.reload();
+          }
+        } else {
+          errBox.textContent = `❌ ${result.error || 'Failed to update details.'}`;
+          errBox.style.display = 'block';
+        }
+      } catch (err) {
+        errBox.textContent = `❌ Error: ${err.message}`;
+        errBox.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>

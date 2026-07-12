@@ -1458,6 +1458,91 @@ def update_master_mapping():
         return jsonify({"success": True})
     return jsonify({"error": "Master not found"}), 404
 
+# ══════════════════════════════════════
+# INTEGRATION: OFFLINE TRANSLATOR
+# ══════════════════════════════════════
+class OfflineTranslator:
+    def __init__(self):
+        self.translators = {}
+        self.tokenizers = {}
+        self.current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.models_dir = os.path.join(self.current_dir, "models")
+        
+    def get_translator_and_tokenizer(self, direction):
+        if direction not in self.translators:
+            try:
+                import ctranslate2
+                from transformers import AutoTokenizer
+            except ImportError:
+                raise RuntimeError("Translation libraries (ctranslate2, transformers, sacremoses) are not installed. Please run installation scripts.")
+                
+            model_name = f"opus-mt-{direction}-ct2"
+            tokenizer_name = f"opus-mt-{direction}-tokenizer"
+            model_path = os.path.join(self.models_dir, model_name)
+            tokenizer_path = os.path.join(self.models_dir, tokenizer_name)
+            
+            if not os.path.exists(model_path) or not os.listdir(model_path) or not os.path.exists(tokenizer_path) or not os.listdir(tokenizer_path):
+                raise FileNotFoundError(f"Translation model or tokenizer files for '{direction}' were not found. Please run PREPARE_ALL_OFFLINE.bat to download them.")
+                
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+            # intra_threads=4 forces parallel CPU execution for faster performance
+            translator = ctranslate2.Translator(model_path, device="cpu", intra_threads=4)
+            
+            self.translators[direction] = translator
+            self.tokenizers[direction] = tokenizer
+            
+        return self.translators[direction], self.tokenizers[direction]
+
+    def translate(self, text, direction):
+        if not text.strip():
+            return ""
+            
+        translator, tokenizer = self.get_translator_and_tokenizer(direction)
+        
+        # Split by paragraphs to preserve layout and stay under token length limit
+        paragraphs = text.split("\n")
+        translated_paragraphs = []
+        
+        for para in paragraphs:
+            if not para.strip():
+                translated_paragraphs.append("")
+                continue
+                
+            source_tokens = tokenizer.convert_ids_to_tokens(tokenizer.encode(para))
+            results = translator.translate_batch([source_tokens])
+            target_tokens = results[0].hypotheses[0]
+            translated_para = tokenizer.decode(tokenizer.convert_tokens_to_ids(target_tokens))
+            translated_paragraphs.append(translated_para)
+            
+        return "\n".join(translated_paragraphs)
+
+# Initialize global translator instance (will lazy-load model files on first API call)
+offline_translator = None
+
+@app.route("/api/translate", methods=["POST"])
+def api_translate():
+    global offline_translator
+    data = request.json or {}
+    text = data.get("text", "")
+    direction = data.get("direction", "en-hi") # default en-hi (English to Hindi)
+    
+    if direction not in ["en-hi", "hi-en"]:
+        return jsonify({"error": "Invalid direction. Choose 'en-hi' or 'hi-en'."}), 400
+        
+    if not text.strip():
+        return jsonify({"translated_text": ""})
+        
+    try:
+        if offline_translator is None:
+            offline_translator = OfflineTranslator()
+        
+        translated = offline_translator.translate(text, direction)
+        return jsonify({"translated_text": translated})
+    except FileNotFoundError as e:
+        return jsonify({"error": str(e), "setup_required": True}), 404
+    except Exception as e:
+        return jsonify({"error": f"Translation failed: {str(e)}"}), 500
+
 if __name__ == "__main__":
     # Start background cleanup task
     threading.Thread(target=cleanup_task, daemon=True).start()

@@ -15,6 +15,19 @@ if not exist venv (
     exit /b
 )
 
+:: Verify if venv contains all required translation packages
+venv\Scripts\python.exe -c "import flask, docx, requests, ctranslate2, transformers, sacremoses, sentencepiece" >nul 2>nul
+if errorlevel 1 (
+    echo [WARNING] Missing required packages or environment mismatch. Updating venv...
+    call venv\Scripts\activate.bat
+    python -m pip install --no-index --find-links=offline_packages -r requirements.txt
+    if errorlevel 1 (
+        echo [ERROR] Failed to update packages!
+        pause
+        exit /b
+    )
+)
+
 echo Activating virtual environment...
 call venv\Scripts\activate.bat
 

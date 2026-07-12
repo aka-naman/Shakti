@@ -17,3 +17,7 @@ generated_notices/
 # Application Secrets & Configuration
 secret_key.txt
 config.json
+
+# Local translation models and new offline package wheels
+models/
+offline_packages/

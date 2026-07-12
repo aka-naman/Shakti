@@ -93,7 +93,7 @@ if not exist "venv\Scripts\python.exe" (
     venv\Scripts\python.exe -m pip install --no-index --find-links=offline_packages -r requirements.txt
 ) else (
     :: Verify if venv path matches current location and dependencies are importable
-    venv\Scripts\python.exe -c "import flask, docx, requests" >nul 2>nul
+    venv\Scripts\python.exe -c "import flask, docx, requests, ctranslate2, transformers, sacremoses, sentencepiece" >nul 2>nul
     if errorlevel 1 (
         echo ⚠️  Environment validation failed due to missing packages or path mismatch. Re-linking...
         rmdir /s /q venv

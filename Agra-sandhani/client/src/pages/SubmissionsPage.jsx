@@ -36,6 +36,16 @@ export default function SubmissionsPage() {
         selectedFields: []
     });
 
+    // Frequency Report Modal State (Mitigations 2, 3, 4)
+    const [showFrequencyModal, setShowFrequencyModal] = useState(false);
+    const [freqTabulateField, setFreqTabulateField] = useState('');
+    const [freqDateField, setFreqDateField] = useState('');
+    const [freqAvailableMonths, setFreqAvailableMonths] = useState([]);
+    const [freqSelectedMonths, setFreqSelectedMonths] = useState([]);
+    const [freqPreviewData, setFreqPreviewData] = useState(null);
+    const [freqLoading, setFreqLoading] = useState(false);
+    const [freqCapped, setFreqCapped] = useState(false);
+
     // Initialize excel selected fields when fields load
     useEffect(() => {
         if (fields.length > 0 && excelOptions.selectedFields.length === 0) {
@@ -179,6 +189,96 @@ export default function SubmissionsPage() {
         }
     };
 
+    // Auto-select initial fields for Frequency Report (Mitigation 2, 4)
+    useEffect(() => {
+        if (showFrequencyModal && fields.length > 0) {
+            const tabField = fields.find(f => f.type === 'select' || f.type === 'radio' || f.type === 'checkbox') || fields[0];
+            if (tabField && !freqTabulateField) {
+                setFreqTabulateField(tabField.label);
+            }
+            const dateFld = fields.find(f => f.type === 'date' || f.type === 'number') || fields.find(f => f.label.toLowerCase().includes('date')) || fields[0];
+            if (dateFld && !freqDateField) {
+                setFreqDateField(dateFld.label);
+            }
+        }
+    }, [showFrequencyModal, fields, freqTabulateField, freqDateField]);
+
+    const fetchReportMetadata = useCallback(async () => {
+        if (!freqTabulateField || !freqDateField) return;
+        setFreqLoading(true);
+        try {
+            const res = await api.get('/export/frequency-report/preview', {
+                params: {
+                    formId,
+                    tabulateField: freqTabulateField,
+                    dateField: freqDateField
+                }
+            });
+            setFreqCapped(res.data.isCapped);
+            if (res.data.availableMonths) {
+                setFreqAvailableMonths(res.data.availableMonths);
+                setFreqSelectedMonths(res.data.availableMonths);
+            }
+        } catch (err) {
+            console.error('Failed to load report metadata', err);
+        } finally {
+            setFreqLoading(false);
+        }
+    }, [formId, freqTabulateField, freqDateField]);
+
+    useEffect(() => {
+        if (showFrequencyModal && freqTabulateField && freqDateField) {
+            fetchReportMetadata();
+        }
+    }, [showFrequencyModal, freqTabulateField, freqDateField]);
+
+    const handleMonthToggle = (month) => {
+        if (freqSelectedMonths.includes(month)) {
+            setFreqSelectedMonths(freqSelectedMonths.filter(m => m !== month));
+        } else {
+            setFreqSelectedMonths([...freqSelectedMonths, month]);
+        }
+    };
+
+    const handleFieldChange = (type, val) => {
+        if (type === 'tabulate') {
+            setFreqTabulateField(val);
+            setFreqAvailableMonths([]);
+            setFreqSelectedMonths([]);
+        } else if (type === 'date') {
+            setFreqDateField(val);
+            setFreqAvailableMonths([]);
+            setFreqSelectedMonths([]);
+        }
+    };
+
+    const handleFrequencyExport = async (format) => {
+        try {
+            const response = await api.post('/export/frequency-report/export', {
+                formId: parseInt(formId, 10),
+                tabulateField: freqTabulateField,
+                dateField: freqDateField,
+                months: freqSelectedMonths,
+                format
+            }, {
+                responseType: 'blob'
+            });
+
+            const blob = new Blob([response.data], { 
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+            });
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = `frequency_report_${formName.replace(/[^a-zA-Z0-9]/g, '_')}.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (err) {
+            console.error('Export failed', err);
+            alert('Export failed');
+        }
+    };
+
     return (
         <div className="submissions-page">
             <header className="submissions-header">
@@ -214,31 +314,32 @@ export default function SubmissionsPage() {
                         </select>
                     </div>
                     <span className="badge badge-count">{pagination.total} entries</span>
-                    <div className="export-group">
-                        <select 
-                            className="form-input export-select" 
-                            onChange={(e) => {
-                                if (e.target.value === 'pdf') {
-                                    setSelectedPdfFields(fields.map(f => f.label));
-                                    setShowPdfModal(true);
-                                } else if (e.target.value === 'excel_custom') {
-                                    setShowExcelModal(true);
-                                } else if (e.target.value === 'pick_fields') {
-                                    setShowPickFieldsModal(true);
-                                } else if (e.target.value === 'standard') {
-                                    handleExport(false);
-                                }
-                                e.target.value = ''; // Reset select
-                            }}
-                            defaultValue=""
-                        >
-                            <option value="" disabled>📥 Export Options</option>
-                            <option value="standard">Excel: Standard</option>
-                            <option value="excel_custom">⚙️ Excel: Custom...</option>
-                            <option value="pick_fields">🎯 Pick Fields to Export</option>
-                            <option value="pdf">📄 PDF: Custom Landscape</option>
-                        </select>
-                    </div>
+                    <select 
+                        className="form-input export-select" 
+                        onChange={(e) => {
+                            if (e.target.value === 'pdf') {
+                                setSelectedPdfFields(fields.map(f => f.label));
+                                setShowPdfModal(true);
+                            } else if (e.target.value === 'excel_custom') {
+                                setShowExcelModal(true);
+                            } else if (e.target.value === 'pick_fields') {
+                                setShowPickFieldsModal(true);
+                            } else if (e.target.value === 'standard') {
+                                handleExport(false);
+                            } else if (e.target.value === 'frequency_report') {
+                                setShowFrequencyModal(true);
+                            }
+                            e.target.value = ''; // Reset select
+                        }}
+                        defaultValue=""
+                    >
+                        <option value="" disabled>📥 Export Options</option>
+                        <option value="standard">Excel: Standard</option>
+                        <option value="excel_custom">⚙️ Excel: Custom...</option>
+                        <option value="pick_fields">🎯 Pick Fields to Export</option>
+                        <option value="pdf">📄 PDF: Custom Landscape</option>
+                        <option value="frequency_report">📊 Frequency Analysis & Export</option>
+                    </select>
                 </div>
             </header>
 
@@ -598,6 +699,121 @@ export default function SubmissionsPage() {
                                 }}
                             >
                                 🚀 Export Selected Fields
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Frequency Analysis Modal (Stretched Vertically & Horizontally, Small Buttons) */}
+            {showFrequencyModal && (
+                <div className="modal-overlay" onClick={() => setShowFrequencyModal(false)}>
+                    <div className="modal glass-card modal-fixed-height shadow-2xl" style={{ maxWidth: '1200px', width: '95%', height: '80vh', display: 'flex', flexDirection: 'column', padding: '24px 32px' }} onClick={e => e.stopPropagation()}>
+                        
+                        {/* Header */}
+                        <div className="flex justify-between items-start pb-3 mb-3 border-b border-white-10" style={{ flexShrink: 0 }}>
+                            <div>
+                                <h2 className="font-bold" style={{ fontSize: '1.2rem', color: 'var(--gold)', letterSpacing: '0.02em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span>📊</span> Frequency Analysis & Reporting
+                                </h2>
+                                <p className="text-secondary mt-0.5" style={{ fontSize: '0.75rem', color: '#8b949e' }}>Aggregate option counts grouped chronologically by date intervals.</p>
+                            </div>
+                            <button className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', color: '#8b949e', fontSize: '0.85rem' }} onClick={() => setShowFrequencyModal(false)}>✕</button>
+                        </div>
+
+                        {/* Stretched Content Container */}
+                        <div className="flex flex-col gap-5 flex-grow overflow-y-auto" style={{ minHeight: 0 }}>
+                            {/* Section 1: Dropdown Selection Grid (Stretched horizontally) */}
+                            <div className="flex flex-col gap-4 p-3.5" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', flexShrink: 0 }}>
+                                {/* Option (Columns) */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="font-bold text-secondary" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pivot Column (Options)</label>
+                                    <select 
+                                        className="form-input" 
+                                        value={freqTabulateField}
+                                        onChange={(e) => handleFieldChange('tabulate', e.target.value)}
+                                        style={{ background: '#0d1117', border: '1px solid #30363d', color: '#f5f5f5', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', height: '32px' }}
+                                    >
+                                        <option value="" disabled>-- Select Option Field --</option>
+                                        {fields.map(f => (
+                                            <option key={f.id} value={f.label}>
+                                                {f.label} {f.type === 'select' || f.type === 'radio' ? ' (Dropdown/Radio)' : ` (${f.type})`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Date (Rows) */}
+                                <div className="flex flex-col gap-1.5">
+                                    <label className="font-bold text-secondary" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Row Group (Date/Year)</label>
+                                    <select 
+                                        className="form-input" 
+                                        value={freqDateField}
+                                        onChange={(e) => handleFieldChange('date', e.target.value)}
+                                        style={{ background: '#0d1117', border: '1px solid #30363d', color: '#f5f5f5', borderRadius: '6px', padding: '4px 10px', fontSize: '0.8rem', height: '32px' }}
+                                    >
+                                        <option value="" disabled>-- Select Date/Year Field --</option>
+                                        {fields.map(f => (
+                                            <option key={f.id} value={f.label}>
+                                                {f.label} {f.type === 'date' || f.type === 'number' ? ' (Date/Number)' : ` (${f.type})`}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Section 2: Month Filter Checkbox Grid (Stretched vertically with flexGrow) */}
+                            {freqAvailableMonths.length > 0 && (
+                                <div className="flex flex-col gap-2.5 flex-grow" style={{ minHeight: '150px' }}>
+                                    <div className="flex justify-between items-center px-1" style={{ flexShrink: 0 }}>
+                                        <label className="font-bold text-secondary" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filter Month Periods</label>
+                                        <div className="flex gap-2.5" style={{ fontSize: '0.72rem' }}>
+                                            <button className="hover:underline font-semibold" style={{ color: '#d4af37', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setFreqSelectedMonths(freqAvailableMonths)}>Select All</button>
+                                            <span className="text-gray-600">|</span>
+                                            <button className="hover:underline font-semibold" style={{ color: '#d4af37', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setFreqSelectedMonths([])}>Clear All</button>
+                                        </div>
+                                    </div>
+                                    <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: '8px', padding: '12px', overflowY: 'auto', flexGrow: 1 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px' }}>
+                                            {freqAvailableMonths.map(month => (
+                                                <label key={month} className="flex items-center gap-2 text-xs cursor-pointer select-none transition-colors hover:text-white" style={{ color: freqSelectedMonths.includes(month) ? '#f5f5f5' : '#8b949e' }}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={freqSelectedMonths.includes(month)}
+                                                        onChange={() => handleMonthToggle(month)}
+                                                        className="custom-checkbox-input"
+                                                        style={{ width: '13px', height: '13px', margin: 0 }}
+                                                    />
+                                                    <span style={{ fontSize: '0.78rem' }}>{month}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Section 3: Warnings */}
+                            {freqCapped && (
+                                <div style={{ background: 'rgba(212,175,55,0.06)', color: '#d4af37', border: '1px solid rgba(212,175,55,0.2)', padding: '10px 14px', borderRadius: '6px', fontSize: '10.5px', lineHeight: '1.4', display: 'flex', gap: '8px', alignItems: 'flex-start', flexShrink: 0 }}>
+                                    <span>⚠️</span>
+                                    <span><strong>Column Capping Applied:</strong> There are more than 15 unique options. The report will output the top 14 by frequency, with all other options aggregated under an "Others" column.</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Section 4: Modal Footer Action Buttons (Small styled buttons) */}
+                        <div className="flex gap-2.5 justify-end pt-3 mt-4 border-t border-white-10" style={{ flexShrink: 0 }}>
+                            <button className="btn btn-ghost" style={{ padding: '6px 14px', fontSize: '0.75rem', borderRadius: '4px' }} onClick={() => setShowFrequencyModal(false)}>Cancel</button>
+                            <button 
+                                className="btn btn-accent" 
+                                style={{ padding: '6px 16px', fontSize: '0.75rem', fontWeight: 'bold', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                onClick={() => {
+                                    handleFrequencyExport('excel');
+                                    setShowFrequencyModal(false);
+                                }}
+                                disabled={freqLoading || !freqTabulateField || !freqDateField}
+                            >
+                                <span>📥</span> Export to Excel
                             </button>
                         </div>
                     </div>

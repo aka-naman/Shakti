@@ -13,7 +13,7 @@ yarn-error.log*
 **/*.pyo
 **/*.pyd
 .Python
-**/logs/*.log
+**/logs/
 **/generated_notices/
 
 # OS/IDE

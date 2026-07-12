@@ -36,6 +36,35 @@ const server = http.createServer((req, res) => {
         }));
     }
 
+    // API endpoint for translation (Proxy to Noting Builder on Port 5001)
+    if (req.url === '/api/translate' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            const notingUrl = `http://127.0.0.1:5001/api/translate`;
+            
+            const proxyReq = http.request(notingUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(body)
+                }
+            }, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode, proxyRes.headers);
+                proxyRes.pipe(res);
+            });
+            
+            proxyReq.on('error', (e) => {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to connect to Noting Builder translation API: ' + e.message }));
+            });
+            
+            proxyReq.write(body);
+            proxyReq.end();
+        });
+        return;
+    }
+
     // Static file serving
     let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
     const extname = path.extname(filePath);

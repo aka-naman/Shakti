@@ -7,6 +7,9 @@ const PORT = 8080;
 
 // Function to get Local IP Address
 function getLocalIp() {
+    if (process.env.LAN_IP) {
+        return process.env.LAN_IP;
+    }
     const interfaces = os.networkInterfaces();
     for (const devName in interfaces) {
         const iface = interfaces[devName];
@@ -31,6 +34,35 @@ const server = http.createServer((req, res) => {
             agraPort: 5000,
             notingPort: 5001
         }));
+    }
+
+    // API endpoint for translation (Proxy to Noting Builder on Port 5001)
+    if (req.url === '/api/translate' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            const notingUrl = `http://127.0.0.1:5001/api/translate`;
+            
+            const proxyReq = http.request(notingUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(body)
+                }
+            }, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode, proxyRes.headers);
+                proxyRes.pipe(res);
+            });
+            
+            proxyReq.on('error', (e) => {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to connect to Noting Builder translation API: ' + e.message }));
+            });
+            
+            proxyReq.write(body);
+            proxyReq.end();
+        });
+        return;
     }
 
     // Static file serving

@@ -16,7 +16,7 @@ if %errorlevel% neq 0 (
 :: 2. Check if bundle was prepared
 if not exist "client\dist" (
     echo ❌ ERROR: Frontend "dist" folder not found. 
-    echo Did you run "Prepare_Offline_Bundle.bat" on an internet machine first?
+    echo Did you run "PREPARE_ALL_OFFLINE.bat" on an internet machine first?
     pause
     exit /b 1
 )

@@ -1,0 +1,634 @@
+{% extends 'base.html' %}
+
+{% block title %}Drafting: Fee Related Noting - AeroForm Automatrix{% endblock %}
+
+{% block content %}
+<!-- Include Bootstrap to preserve layout structures, styled under DRDO variables -->
+<link href="{{ url_for('static', filename='css/bootstrap.min.css') }}" rel="stylesheet">
+
+<div style="margin-bottom: 2rem;">
+  <a href="{{ url_for('training_menu') }}" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; color: var(--primary-navy); font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem; transition: var(--transition-fast);">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12"></line>
+      <polyline points="12 19 5 12 12 5"></polyline>
+    </svg>
+    Back to Sub-modules
+  </a>
+  <h2>Drafting: Fee Related Noting Sheet / शुल्क संबंधी नोटिंग प्रपत्र</h2>
+  <p style="color: var(--text-muted);">Bilingual Fee Related Noting Sheet generator with fully customizable nominee tables (edit, add, delete, or replace any column header).</p>
+</div>
+
+<div class="form-container" style="max-width: 1000px; padding: 3rem; background: var(--secondary-white); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);">
+    <div class="card-header-bar" style="background-color: var(--accent-gold); margin-top: -3rem; margin-left: -3rem; margin-right: -3rem; border-radius: var(--radius-lg) var(--radius-lg) 0 0; margin-bottom: 2rem;"></div>
+
+    <form action="/generate-fee-noting" method="POST" id="notingForm">
+        
+        <!-- Section 1: File Reference & Subject Details -->
+        <div class="card p-4 mb-4 border-0 shadow-sm" style="background-color: var(--secondary-light);">
+            <div class="section-title" style="font-weight: 700; color: var(--primary-navy); border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.5px; font-size: 1.1rem;">
+                1. Reference & Subject Details / संदर्भ और विषय विवरण
+            </div>
+            
+            <div class="row g-3 mb-3">
+                <div class="col-md-8">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Form No. / पत्र संख्या <span class="text-danger">*</span></label>
+                    <input type="text" name="form_no" id="form_no" class="form-control" required value="टीबीआरएल/मा.सं.वि.वि./" placeholder="e.g. टीबीआरएल/मा.सं.वि.वि./092" style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+                </div>
+                <input type="hidden" name="lab_name" id="lab_name_hidden" value="टीबीआरएल">
+                <div class="col-md-4">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Noting Date (Manual pen space) / दिनांक <span class="text-danger">*</span></label>
+                    <input type="text" name="ref_date" class="form-control" id="ref_date" required placeholder="Leave blank for manual entry" style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+                </div>
+            </div>
+            
+            <!-- Dynamic References Section -->
+            <div class="mb-4">
+                <label class="form-label" style="font-weight: 700; color: var(--primary-navy); font-size: 1.05rem; border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.3rem; width: 100%; display: block; margin-bottom: 1rem;">
+                    References / संदर्भ (Maximum 10)
+                </label>
+                
+                <div id="references-container">
+                    <!-- Reference 1: Auto-populated from Form No & Noting Date -->
+                    <div class="row g-2 align-items-center mb-2 bg-light p-2 rounded" style="border-left: 3px solid var(--primary-navy);">
+                        <div class="col-md-1 text-center fw-bold text-muted small">..(1)</div>
+                        <div class="col-md-7">
+                            <label class="form-label mb-1 fw-semibold text-muted small">Reference Source / संदर्भ पत्र-ईमेल</label>
+                            <input type="text" id="ref_source_1" class="form-control form-control-sm bg-white" style="font-size: 0.85rem;">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label mb-1 fw-semibold text-muted small">Reference Date / संदर्भ तिथि</label>
+                            <input type="text" id="ref_date_1" class="form-control form-control-sm bg-white" style="font-size: 0.85rem;">
+                        </div>
+                    </div>
+                    
+                    <!-- Additional references will be added here -->
+                    <div id="additional-references-container"></div>
+                </div>
+                
+                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="btn-add-ref" style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; font-weight: 600;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Add Reference / संदर्भ जोड़ें
+                </button>
+            </div>
+            
+            <input type="hidden" name="references_json" id="references_json">
+            <input type="hidden" name="reference_text" id="reference_text_hidden">
+            <input type="hidden" name="ref_mail_date" id="ref_mail_date_hidden">
+            
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Subject (Hindi) / विषय (हिंदी) <span class="text-danger">*</span></label>
+                    <input type="text" name="subject_hindi" class="form-control" required value='सीनियर एक्स्क्यूटिव कार्यक्रम ऑन “Leadership in an Unpredictable World” ऐट एन.आई. ए. एस .,बेंगलोरु, ड्यूरिंग  19-24जनवरी 2026' style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Subject (English) / विषय (अंग्रेजी) <span class="text-danger">*</span></label>
+                    <input type="text" name="subject_english" class="form-control" required value='Senior Executive Programme on “Leadership in an Unpredictable World ” at NIAS Bengaluru during 19-24 January, 2026' style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2: Course Details -->
+        <div class="card p-4 mb-4 border-0 shadow-sm" style="background-color: var(--secondary-light);">
+            <div class="section-title" style="font-weight: 700; color: var(--primary-navy); border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.5px; font-size: 1.1rem;">
+                2. Course Information / पाठ्यक्रम की जानकारी
+            </div>
+            
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Start Date / प्रारंभ तिथि <span class="text-danger">*</span></label>
+                    <input type="date" name="start_date" id="start_date" class="form-control" required style="padding: 0.6rem; border: 1px solid var(--secondary-border);" onchange="calculateDaysCount()">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">End Date / समाप्ति तिथि <span class="text-danger">*</span></label>
+                    <input type="date" name="end_date" id="end_date" class="form-control" required style="padding: 0.6rem; border: 1px solid var(--secondary-border);" onchange="calculateDaysCount()">
+                </div>
+            </div>
+            
+            <div class="mb-3 p-2 rounded bg-white border d-flex justify-content-between align-items-center" style="font-size: 0.85rem; border-left: 3px solid var(--primary-navy) !important;">
+                <span style="font-weight: 600; color: var(--primary-navy);">📅 Duration / पाठ्यक्रम अवधि:</span>
+                <span class="badge bg-primary px-3 py-2 fs-7" id="days-calculated-badge">1 Day</span>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Course Title / पाठ्यक्रम का नाम <span class="text-danger">*</span></label>
+                <input type="text" name="course_title" class="form-control" required value="Leadership in an Unpredictable World" placeholder="e.g. Leadership in an Unpredictable World" style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+            </div>
+            
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Course Type / पाठ्यक्रम का प्रकार <span class="text-danger">*</span></label>
+                    <select name="course_type" class="form-select" id="course_select" required style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+                        {% for c in courses %}
+                        <option value="{{ c.hindi }}" {% if c.hindi == "सी.ई.पी. कोर्स" %}selected{% endif %}>{{ c.hindi }} / {{ c.english }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Nominating Group / समूह का नाम <span class="text-danger">*</span></label>
+                    <select name="group_name" class="form-select" required style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+                        {% for g in groups %}
+                        <option value="{{ g }}">{{ g }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label" style="font-weight: 600; color: var(--primary-navy);">Organizing Institute / आयोजक संस्थान <span class="text-danger">*</span></label>
+                <input type="text" name="org_institute" class="form-control" required value="एन.आई. ए. एस .,बेंगलोरु (NIAS Bengaluru)" placeholder="e.g., NIAS Bengaluru" style="padding: 0.6rem; border: 1px solid var(--secondary-border);">
+            </div>
+        </div>
+
+        <!-- Section 3: Customizable Dynamic Table -->
+        <div class="card p-4 mb-4 border-0 shadow-sm" style="background-color: var(--secondary-light);">
+            <div class="section-title" style="font-weight: 700; color: var(--primary-navy); border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.5px; font-size: 1.1rem;">
+                3. Customizable Nominee Table / नामांकित तालिका संपादन
+            </div>
+            <p class="text-muted small mb-3">Double-click or edit the text inside the column header boxes directly to rename them. Click "+" to add columns, and "×" to delete columns.</p>
+            
+            <div class="table-responsive" style="border: 1px solid var(--secondary-border); border-radius: var(--radius-md);">
+                <table class="table table-bordered bg-white align-middle mb-0" id="customizable-table" style="min-width: 1000px; font-size: 0.9rem;">
+                    <thead style="background-color: #f8f9fa; color: #212529; border-bottom: 2px solid #dee2e6;">
+                        <tr id="table-headers-tr">
+                            <!-- Injected dynamically by JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="table-body-tbody">
+                        <!-- Injected dynamically by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Backend packaging wrappers -->
+            <div id="hidden_columns_container"></div>
+            <input type="hidden" name="num_rows" id="num_rows_input" value="2">
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="d-flex gap-3">
+                    <button type="button" class="btn btn-secondary" id="btn-add-col-field" style="padding: 0.5rem 1rem; font-size: 0.85rem; text-transform: none; display: flex; align-items: center; gap: 0.3rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Add Column
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="btn-add-row-field" style="padding: 0.5rem 1rem; font-size: 0.85rem; text-transform: none; display: flex; align-items: center; gap: 0.3rem;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Add Nominee Row
+                    </button>
+                </div>
+                
+                <span class="table-hint" style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;">
+                    📄 Column text names will translate directly into the generated Word document.
+                </span>
+            </div>
+        </div>
+
+        <!-- Section 4: Signatories -->
+        <div class="card p-4 mb-4 border-0 shadow-sm" style="background-color: var(--secondary-light);">
+            <div class="section-title" style="font-weight: 700; color: var(--primary-navy); border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 0.5px; font-size: 1.1rem;">
+                4. Signatories (Auto-Saved) / हस्ताक्षरकर्ता विवरण
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="p-3 bg-white rounded border">
+                        <label class="mb-2" style="color: var(--primary-navy); font-weight: 700;">Right Side Signatory (Drafting Officer)</label>
+                        <input type="text" name="sig1_name" class="form-control mb-2" value="{{ defaults.get('sig1_name', '') }}" placeholder="e.g., Shri Amit Sharma" style="padding: 0.5rem; border: 1px solid var(--secondary-border);">
+                        <input type="text" name="sig1_desig" class="form-control" value="{{ defaults.get('sig1_desig', '') }}" placeholder="e.g., Scientist D" style="padding: 0.5rem; border: 1px solid var(--secondary-border);">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="p-3 bg-white rounded border">
+                        <label class="mb-2" style="color: var(--primary-navy); font-weight: 700;">Left Side Signatory (Approving Officer)</label>
+                        <input type="text" name="sig2_name" class="form-control mb-2" value="{{ defaults.get('sig2_name', '') }}" placeholder="e.g., Dr. Devendra Kumar" style="padding: 0.5rem; border: 1px solid var(--secondary-border);">
+                        <input type="text" name="sig2_desig" class="form-control" value="{{ defaults.get('sig2_desig', '') }}" placeholder="e.g., Director / Head HRD" style="padding: 0.5rem; border: 1px solid var(--secondary-border);">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 3rem; display: flex; gap: 1.5rem; justify-content: flex-end;">
+            <a href="{{ url_for('training_menu') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.75rem;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 10 12 15 7 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Generate Noting / नोटिंग उत्पन्न करें
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initial default columns matching the Fee Noting table structure
+    let columns = {{ default_columns | tojson }};
+    let nomineeRowsCount = 2; // Default start rows
+
+    // Pre-populate default nominee row data
+    let nomineeData = [
+        { 
+            'पी.आई.एस. नं. / PIS No.': '2018AB1046',
+            'नाम एवं पद / Name and Design.': "श्री प्रखर  कुमार पांडे , वैज्ञा 'सी' /\nSh. Prakhar Kumar Pandey, Sc‘C’", 
+            'कोर्स का नाम / Course Title': '“Leadership in an Unpredictable World”', 
+            'दिनांक / Date': '19-24  जनवरी 2026', 
+            'योग्यता/डी.ओ.बी./स्थान / Qualification/DOB/Venue': 'B. Tech/26-MAR-1996',
+            'द्रोणा ईमेल आईडी/दूरभाष नं. / DRONA Email ID/Cont.No': 'prakhar08@tbrl.chddom/ 7905493766',
+            'कार्य का क्षेत्र/शुल्क / Key Function Area/Fee': 'High Voltage Application'
+        },
+        { 
+            'पी.आई.एस. नं. / PIS No.': '',
+            'नाम एवं पद / Name and Design.': "", 
+            'कोर्स का नाम / Course Title': '“Leadership in an Unpredictable World”', 
+            'दिनांक / Date': '19-24  जनवरी 2026', 
+            'योग्यता/डी.ओ.बी./स्थान / Qualification/DOB/Venue': '',
+            'द्रोणा ईमेल आईडी/दूरभाष नं. / DRONA Email ID/Cont.No': '',
+            'कार्य का क्षेत्र/शुल्क / Key Function Area/Fee': ''
+        }
+    ];
+
+    let refCount = 1;
+    const maxRefs = 10;
+
+    function addReferenceRow(sourceVal = "", dateVal = "") {
+        if (refCount >= maxRefs) {
+            alert("Maximum 10 references can be added!");
+            return;
+        }
+        
+        refCount++;
+        const container = document.getElementById('additional-references-container');
+        const row = document.createElement('div');
+        row.className = 'row g-2 align-items-center mb-2 reference-row p-2 border rounded position-relative';
+        row.id = `ref-row-${refCount}`;
+        row.innerHTML = `
+            <div class="col-md-1 text-center fw-bold text-muted small">..(${refCount})</div>
+            <div class="col-md-6">
+                <input type="text" class="form-control form-control-sm ref-source-input" placeholder="Reference Source (e.g. Received mail from...)" value="${sourceVal}" required style="font-size: 0.85rem; padding: 0.4rem;">
+            </div>
+            <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm ref-date-input" placeholder="Reference Date (e.g. 05/12/25)" value="${dateVal}" required style="font-size: 0.85rem; padding: 0.4rem;">
+            </div>
+            <div class="col-md-1 text-center">
+                <button type="button" class="btn btn-link link-danger p-0" onclick="removeReferenceRow(${refCount})">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+        updateAddRefButtonState();
+    }
+    
+    window.removeReferenceRow = function(id) {
+        const row = document.getElementById(`ref-row-${id}`);
+        if (row) {
+            row.remove();
+            refCount--;
+            reindexReferenceRows();
+            updateAddRefButtonState();
+        }
+    }
+    
+    function reindexReferenceRows() {
+        const rows = document.querySelectorAll('.reference-row');
+        refCount = 1;
+        rows.forEach((row) => {
+            refCount++;
+            row.id = `ref-row-${refCount}`;
+            row.querySelector('.col-md-1').textContent = `..(${refCount})`;
+            row.querySelector('button').setAttribute('onclick', `removeReferenceRow(${refCount})`);
+        });
+    }
+    
+    function updateAddRefButtonState() {
+        const btn = document.getElementById('btn-add-ref');
+        if (refCount >= maxRefs) {
+            btn.disabled = true;
+            btn.classList.add('disabled');
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('disabled');
+        }
+    }
+    
+    let refSource1Edited = false;
+    let refDate1Edited = false;
+
+    function updateLabName() {
+        const formNo = document.getElementById('form_no').value;
+        const parts = formNo.split('/');
+        const labName = parts[0] ? parts[0].trim() : 'टीबीआरएल';
+        document.getElementById('lab_name_hidden').value = labName;
+        
+        // Sync Reference 1 source
+        if (!refSource1Edited) {
+            document.getElementById('ref_source_1').value = formNo;
+        }
+    }
+    
+    function updateFirstReferenceDate() {
+        const dateVal = document.getElementById('ref_date').value;
+        if (!refDate1Edited) {
+            document.getElementById('ref_date_1').value = dateVal;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Set noting date spaces with current year
+        const refDate = document.getElementById('ref_date');
+        if (refDate) {
+            refDate.value = "  /    /2026"; // Leaving spaces for manual day/month
+        }
+        
+        // Pre-fill course date fields
+        const startInput = document.getElementById('start_date');
+        const endInput = document.getElementById('end_date');
+        if (startInput && endInput) {
+            startInput.value = "2026-01-19";
+            endInput.value = "2026-01-24";
+        }
+
+        // Initialize Table
+        renderTable();
+        calculateDaysCount();
+
+        // Bind events
+        document.getElementById('btn-add-col-field').addEventListener('click', addColumn);
+        document.getElementById('btn-add-row-field').addEventListener('click', addRow);
+        document.getElementById('form_no').addEventListener('input', updateLabName);
+        document.getElementById('ref_date').addEventListener('input', updateFirstReferenceDate);
+        document.getElementById('ref_source_1').addEventListener('input', () => { refSource1Edited = true; });
+        document.getElementById('ref_date_1').addEventListener('input', () => { refDate1Edited = true; });
+        document.getElementById('btn-add-ref').addEventListener('click', () => addReferenceRow());
+        
+        // Initial sync of Reference 1
+        updateLabName();
+        updateFirstReferenceDate();
+        
+        // Prefill default additional reference
+        addReferenceRow('DHRD/70300/TG/25-26/NIAS/C/M/01', '05/12/25');
+        
+        // Intercept form submit to package dynamic columns
+        document.getElementById('notingForm').addEventListener('submit', packageSubmitData);
+    });
+
+    function calculateDaysCount() {
+        const startVal = document.getElementById('start_date').value;
+        const endVal = document.getElementById('end_date').value;
+        const badge = document.getElementById('days-calculated-badge');
+
+        if (startVal && endVal) {
+            const start = new Date(startVal);
+            const end = new Date(endVal);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            badge.textContent = `${diffDays} Day${diffDays !== 1 ? 's' : ''}`;
+        } else {
+            badge.textContent = '0 Days';
+        }
+    }
+
+    function renderTable() {
+        const headerTr = document.getElementById('table-headers-tr');
+        const tbody = document.getElementById('table-body-tbody');
+
+        // 1. Draw Headers
+        headerTr.innerHTML = '';
+        columns.forEach((colName, index) => {
+            const th = document.createElement('th');
+            th.className = 'p-2 text-center position-relative';
+            
+            const isSnCol = colName.toLowerCase().includes('s.n.') || colName.toLowerCase().includes('s.no.') || colName.toLowerCase().includes('s. no.') || colName.includes('क्र.सं.');
+            if (isSnCol) {
+                th.style.width = '60px';
+                th.innerHTML = `<span style="font-size:0.85rem; font-weight:700;">${colName}</span>`;
+            } else {
+                th.innerHTML = `
+                    <div class="d-flex align-items-center justify-content-center gap-1">
+                        <input type="text" class="form-control form-control-sm text-center fw-bold border-0 bg-transparent text-dark header-input" 
+                               value="${colName}" data-index="${index}" style="font-size:0.85rem; min-width: 100px; padding: 0.1rem;" onchange="updateColumnName(this)">
+                        <button type="button" class="btn-close p-1" style="font-size:0.5rem; cursor:pointer;" onclick="deleteColumn(${index})"></button>
+                    </div>
+                `;
+            }
+            headerTr.appendChild(th);
+        });
+        
+        // Row Delete action header column
+        const actionTh = document.createElement('th');
+        actionTh.style.width = '50px';
+        actionTh.className = 'p-2 text-center';
+        actionTh.textContent = 'Act';
+        headerTr.appendChild(actionTh);
+
+        // 2. Draw Body Rows
+        tbody.innerHTML = '';
+        for (let i = 0; i < nomineeRowsCount; i++) {
+            const tr = document.createElement('tr');
+            
+            columns.forEach((colName) => {
+                const td = document.createElement('td');
+                td.className = 'p-1';
+                
+                const isSnCol = colName.toLowerCase().includes('s.n.') || colName.toLowerCase().includes('s.no.') || colName.toLowerCase().includes('s. no.') || colName.includes('क्र.सं.');
+                if (isSnCol) {
+                    td.className = 'p-2 text-center text-muted fw-bold';
+                    td.textContent = i + 1;
+                } else {
+                    const cellVal = (nomineeData[i] && nomineeData[i][colName]) ? nomineeData[i][colName] : '';
+                    const colLower = colName.toLowerCase();
+                    const isMultiline = cellVal.includes('\n') || 
+                                        colLower.includes('design') || 
+                                        colLower.includes('venue') || 
+                                        colLower.includes('date') || 
+                                        colLower.includes('fee') || 
+                                        colLower.includes('title') || 
+                                        colLower.includes('quali') || 
+                                        colLower.includes('email') || 
+                                        colLower.includes('cont') || 
+                                        colLower.includes('पद') || 
+                                        colLower.includes('स्थान') || 
+                                        colLower.includes('शुल्क') || 
+                                        colLower.includes('दूरभाष') || 
+                                        colLower.includes('योग्यता');
+                    
+                    if (isMultiline) {
+                        td.innerHTML = `
+                            <textarea class="form-control form-control-sm border-0 nominee-cell-input" 
+                                   data-row="${i}" data-col="${colName}" placeholder="${colName}" 
+                                   required style="font-size: 0.8rem; padding: 0.35rem; resize: vertical; min-height: 50px;">${cellVal}</textarea>
+                        `;
+                    } else {
+                        td.innerHTML = `
+                            <input type="text" class="form-control form-control-sm border-0 nominee-cell-input" 
+                                   data-row="${i}" data-col="${colName}" placeholder="${colName}" 
+                                   value="${cellVal}" required style="font-size: 0.8rem; padding: 0.35rem;">
+                        `;
+                    }
+                }
+                tr.appendChild(td);
+            });
+
+            // Action row cell
+            const actionTd = document.createElement('td');
+            actionTd.className = 'p-1 text-center';
+            actionTd.innerHTML = `
+                <button type="button" class="btn btn-link link-danger p-1" onclick="deleteRow(${i})">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            `;
+            tr.appendChild(actionTd);
+            tbody.appendChild(tr);
+        }
+    }
+
+    function updateColumnName(inputElement) {
+        const index = parseInt(inputElement.getAttribute('data-index'));
+        const oldName = columns[index];
+        const newName = inputElement.value.trim();
+        
+        if (!newName) {
+            inputElement.value = oldName;
+            return;
+        }
+
+        nomineeData.forEach(row => {
+            if (row[oldName] !== undefined) {
+                row[newName] = row[oldName];
+                delete row[oldName];
+            }
+        });
+
+        columns[index] = newName;
+        
+        const cellInputs = document.querySelectorAll(`input[data-col="${oldName}"], textarea[data-col="${oldName}"]`);
+        cellInputs.forEach(input => {
+            input.setAttribute('data-col', newName);
+            input.placeholder = newName;
+        });
+    }
+
+    function addColumn() {
+        saveInputsState();
+        const colNum = columns.length + 1;
+        const colName = `New Column ${colNum}`;
+        columns.push(colName);
+        renderTable();
+    }
+
+    function deleteColumn(index) {
+        if (columns.length <= 2) {
+            alert("Minimum 2 columns are required!");
+            return;
+        }
+        
+        saveInputsState();
+        const colName = columns[index];
+        columns.splice(index, 1);
+        
+        nomineeData.forEach(row => delete row[colName]);
+        renderTable();
+    }
+
+    function addRow() {
+        saveInputsState();
+        nomineeRowsCount++;
+        nomineeData.push({});
+        renderTable();
+        
+        setTimeout(() => {
+            const inputs = document.querySelectorAll(`[data-row="${nomineeRowsCount-1}"]`);
+            if (inputs.length > 0) inputs[0].focus();
+        }, 50);
+    }
+
+    function deleteRow(rowIndex) {
+        if (nomineeRowsCount <= 1) {
+            alert("At least one nominee is required!");
+            return;
+        }
+        
+        saveInputsState();
+        nomineeRowsCount--;
+        nomineeData.splice(rowIndex, 1);
+        renderTable();
+    }
+
+    function saveInputsState() {
+        const inputs = document.querySelectorAll('.nominee-cell-input');
+        nomineeData = [];
+        for (let i = 0; i < nomineeRowsCount; i++) {
+            nomineeData.push({});
+        }
+        
+        inputs.forEach(input => {
+            const r = parseInt(input.getAttribute('data-row'));
+            const c = input.getAttribute('data-col');
+            if (nomineeData[r]) {
+                nomineeData[r][c] = input.value;
+            }
+        });
+    }
+
+    function packageSubmitData(e) {
+        saveInputsState();
+
+        const refs = [];
+        // Ref 1
+        refs.push({
+            source: document.getElementById('form_no').value.trim(),
+            date: document.getElementById('ref_date').value.trim()
+        });
+        // Add additional rows
+        const addRows = document.querySelectorAll('.reference-row');
+        addRows.forEach(row => {
+            const src = row.querySelector('.ref-source-input').value.trim();
+            const dt = row.querySelector('.ref-date-input').value.trim();
+            if (src || dt) {
+                refs.push({ source: src, date: dt });
+            }
+        });
+        document.getElementById('references_json').value = JSON.stringify(refs);
+
+        // Keep fallback support
+        const firstRefSource = refs[1] ? refs[1].source : '';
+        const firstRefDate = refs[1] ? refs[1].date : '';
+        if (document.getElementById('reference_text_hidden')) {
+            document.getElementById('reference_text_hidden').value = firstRefSource;
+        }
+        if (document.getElementById('ref_mail_date_hidden')) {
+            document.getElementById('ref_mail_date_hidden').value = firstRefDate;
+        }
+
+        const hiddenContainer = document.getElementById('hidden_columns_container');
+        hiddenContainer.innerHTML = '';
+
+        columns.forEach(col => {
+            const inputCol = document.createElement('input');
+            inputCol.type = 'hidden';
+            inputCol.name = 'table_columns';
+            inputCol.value = col;
+            hiddenContainer.appendChild(inputCol);
+        });
+
+        nomineeData.forEach((row, rowIndex) => {
+            columns.forEach(col => {
+                const cellInput = document.createElement('input');
+                cellInput.type = 'hidden';
+                cellInput.name = `${col}_${rowIndex}`;
+                cellInput.value = row[col] || '';
+                hiddenContainer.appendChild(cellInput);
+            });
+        });
+
+        document.getElementById('num_rows_input').value = nomineeRowsCount;
+    }
+</script>
+{% endblock %}

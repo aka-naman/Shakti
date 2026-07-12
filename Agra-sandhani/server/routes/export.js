@@ -465,4 +465,575 @@ router.post('/pdf/:id', authenticate, async (req, res) => {
     }
 });
 
+// Helper for parsing date strings to month groupings (dd-mm-yyyy and fallback formats)
+function parseDateStringToMonthGroup(dateVal) {
+    if (!dateVal) return 'Unknown Month';
+    dateVal = String(dateVal).trim();
+    if (dateVal === '') return 'Unknown Month';
+
+    const monthsNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ];
+
+    // 1. Check for 4-digit Year (e.g. 2026)
+    if (/^\d{4}$/.test(dateVal)) {
+        const yearNum = parseInt(dateVal, 10);
+        if (yearNum >= 1900 && yearNum <= 2100) {
+            return `Year ${yearNum}`;
+        }
+    }
+
+    // 2. Check for dd-mm-yyyy or dd/mm/yyyy (resilient to day count and month count)
+    const dmyMatch = dateVal.match(/^(\d{1,10})[-/](\d{1,10})[-/](\d{4})$/);
+    if (dmyMatch) {
+        const p1 = parseInt(dmyMatch[1], 10);
+        const p2 = parseInt(dmyMatch[2], 10);
+        const year = parseInt(dmyMatch[3], 10);
+
+        let month = p2; // default: second is month (dd-mm-yyyy)
+        // If second number is > 12 and first is <= 12, it is mm-dd-yyyy
+        if (p2 > 12 && p1 <= 12) {
+            month = p1;
+        }
+
+        if (year >= 1900 && year <= 2100) {
+            // Apply modulo 12 to resolve month counts beyond 12 (Gregorian mapping)
+            const monthIdx = ((month - 1) % 12 + 12) % 12;
+            return `${monthsNames[monthIdx]} ${year}`;
+        }
+    }
+
+    // 3. Check for yyyy-mm-dd or yyyy/mm/dd
+    const ymdMatch = dateVal.match(/^(\d{4})[-/](\d{1,10})[-/](\d{1,10})$/);
+    if (ymdMatch) {
+        const year = parseInt(ymdMatch[1], 10);
+        const month = parseInt(ymdMatch[2], 10);
+        if (year >= 1900 && year <= 2100) {
+            const monthIdx = ((month - 1) % 12 + 12) % 12;
+            return `${monthsNames[monthIdx]} ${year}`;
+        }
+    }
+
+    // 4. Try Unix timestamp
+    const isTimestamp = /^\d{10,13}$/.test(dateVal);
+    if (isTimestamp) {
+        const timestampNum = parseInt(dateVal, 10);
+        const dateObj = new Date(timestampNum < 10000000000 ? timestampNum * 1000 : timestampNum);
+        if (!isNaN(dateObj.getTime())) {
+            return `${monthsNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+        }
+    }
+
+    // Fallback: standard Date parsing
+    const dateObj = new Date(dateVal);
+    if (dateObj && !isNaN(dateObj.getTime())) {
+        return `${monthsNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+    }
+
+    return 'Unknown Month';
+}
+
+// Helper for dynamic frequency tabulation (Mitigations 1, 2, 3, 4)
+async function computeFrequencyData(formId, tabulateField, dateField, monthsFilter = null) {
+    // 1. Fetch form version fields to get predefined options for tabulateField (Mitigation 4)
+    const fieldsResult = await pool.query(
+        `SELECT label, type, options_json FROM form_fields 
+         WHERE form_version_id = (
+            SELECT id FROM form_versions WHERE form_id = $1 ORDER BY version_number DESC LIMIT 1
+         ) AND label = $2`,
+        [formId, tabulateField]
+    );
+
+    let predefinedOptions = [];
+    if (fieldsResult.rows.length > 0) {
+        const field = fieldsResult.rows[0];
+        if (field.options_json && Array.isArray(field.options_json)) {
+            predefinedOptions = field.options_json.map(opt => typeof opt === 'object' ? opt.value || opt.label || '' : String(opt));
+        }
+    }
+
+    // 2. Fetch only key-specific columns from PG to avoid OOM (Mitigation 1)
+    const submissionsResult = await pool.query(
+        `SELECT s.data_json->>$2 AS val, s.data_json->>$3 AS dt
+         FROM submissions s
+         JOIN form_versions fv ON s.form_version_id = fv.id
+         WHERE fv.form_id = $1 AND s.deleted_at IS NULL`,
+        [formId, tabulateField, dateField]
+    );
+
+    // 3. Process each submission
+    const rawData = [];
+    const uniqueOptionsSet = new Set(predefinedOptions.filter(o => o !== ''));
+    
+    const optionTotalCounts = {};
+    predefinedOptions.forEach(opt => {
+        optionTotalCounts[opt] = 0;
+    });
+
+    submissionsResult.rows.forEach(row => {
+        let optionVal = (row.val !== undefined && row.val !== null) ? String(row.val).trim() : '';
+        if (optionVal === '') optionVal = '(Blank)'; // Mitigation 4: handle blank entries
+
+        let dateVal = (row.dt !== undefined && row.dt !== null) ? String(row.dt).trim() : '';
+        const monthGroup = parseDateStringToMonthGroup(dateVal);
+
+        rawData.push({ optionVal, monthGroup });
+        uniqueOptionsSet.add(optionVal);
+        optionTotalCounts[optionVal] = (optionTotalCounts[optionVal] || 0) + 1;
+    });
+
+    // 4. Mitigation 3: Column Explosion Capping
+    let uniqueOptions = Array.from(uniqueOptionsSet);
+    let isCapped = false;
+    let keepOptions = new Set();
+
+    if (uniqueOptions.length > 15) {
+        isCapped = true;
+        const sortedOptions = uniqueOptions
+            .map(opt => ({ opt, count: optionTotalCounts[opt] || 0 }))
+            .sort((a, b) => b.count - a.count);
+        
+        for (let i = 0; i < 14; i++) {
+            if (sortedOptions[i]) keepOptions.add(sortedOptions[i].opt);
+        }
+    }
+
+    // Build the grid
+    const monthGroups = {};
+    const finalOptionsSet = new Set();
+
+    rawData.forEach(item => {
+        let opt = item.optionVal;
+        if (isCapped && !keepOptions.has(opt)) {
+            opt = 'Others';
+        }
+        finalOptionsSet.add(opt);
+
+        if (!monthGroups[item.monthGroup]) {
+            monthGroups[item.monthGroup] = {};
+        }
+        monthGroups[item.monthGroup][opt] = (monthGroups[item.monthGroup][opt] || 0) + 1;
+    });
+
+    const orderedOptions = [];
+    predefinedOptions.forEach(opt => {
+        const finalOpt = (isCapped && !keepOptions.has(opt)) ? 'Others' : opt;
+        if (finalOptionsSet.has(finalOpt) && !orderedOptions.includes(finalOpt)) {
+            orderedOptions.push(finalOpt);
+        }
+    });
+
+    finalOptionsSet.forEach(opt => {
+        if (!orderedOptions.includes(opt) && opt !== 'Others') {
+            orderedOptions.push(opt);
+        }
+    });
+
+    if (finalOptionsSet.has('Others')) {
+        orderedOptions.push('Others');
+    }
+
+    const columns = ['Month', ...orderedOptions];
+
+    let allMonths = Object.keys(monthGroups);
+
+    // If no submissions exist, create a default current month row with 0 values (User request)
+    if (allMonths.length === 0) {
+        const monthsNames = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        const now = new Date();
+        const defaultMonthGroup = `${monthsNames[now.getMonth()]} ${now.getFullYear()}`;
+        allMonths = [defaultMonthGroup];
+        monthGroups[defaultMonthGroup] = {};
+    }
+
+    // Sort months chronologically by Gregorian calendar
+    const monthOrderVal = (mStr) => {
+        if (mStr.startsWith('Year ')) {
+            return parseInt(mStr.split(' ')[1], 10) * 12;
+        }
+        if (mStr === 'Unknown Month') return 0;
+        const [monthName, yearStr] = mStr.split(' ');
+        const year = parseInt(yearStr, 10) || 0;
+        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const monthIdx = months.indexOf(monthName);
+        return year * 12 + (monthIdx !== -1 ? monthIdx : 0);
+    };
+
+    allMonths.sort((a, b) => monthOrderVal(a) - monthOrderVal(b));
+
+    const rows = [];
+    allMonths.forEach(mGroup => {
+        if (monthsFilter && Array.isArray(monthsFilter) && monthsFilter.length > 0) {
+            if (!monthsFilter.includes(mGroup)) return;
+        }
+
+        const row = { Month: mGroup };
+        orderedOptions.forEach(opt => {
+            row[opt] = monthGroups[mGroup][opt] || 0;
+        });
+        rows.push(row);
+    });
+
+    return {
+        columns,
+        rows,
+        availableMonths: allMonths,
+        isCapped
+    };
+}
+
+/**
+ * @route GET /api/export/frequency-report/preview
+ * @desc Get aggregated preview of dynamic frequency tabulation
+ * @access Authenticated
+ */
+router.get('/frequency-report/preview', authenticate, async (req, res) => {
+    try {
+        const { formId, tabulateField, dateField, months } = req.query;
+        if (!formId || !tabulateField || !dateField) {
+            return res.status(400).json({ error: 'formId, tabulateField, and dateField are required' });
+        }
+
+        const parsedFormId = parseInt(formId, 10);
+        const access = await checkFormAccess(parsedFormId, req.user.id, req.user.role);
+        if (!access.exists) return res.status(404).json({ error: 'Form not found' });
+        if (!access.hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+        const selectedMonths = months ? months.split(',') : null;
+        const result = await computeFrequencyData(parsedFormId, tabulateField, dateField, selectedMonths);
+
+        res.json(result);
+    } catch (err) {
+        console.error('Preview frequency report error:', err);
+        res.status(500).json({ error: 'Failed to generate preview' });
+    }
+});
+
+/**
+ * @route POST /api/export/frequency-report/export
+ * @desc Export dynamic frequency tabulation to Excel, PDF, CSV, or HTML
+ * @access Authenticated
+ */
+router.post('/frequency-report/export', authenticate, async (req, res) => {
+    try {
+        const { formId, tabulateField, dateField, months, format } = req.body;
+        if (!formId || !tabulateField || !dateField || !format) {
+            return res.status(400).json({ error: 'formId, tabulateField, dateField, and format are required' });
+        }
+
+        const parsedFormId = parseInt(formId, 10);
+        const access = await checkFormAccess(parsedFormId, req.user.id, req.user.role);
+        if (!access.exists) return res.status(404).json({ error: 'Form not found' });
+        if (!access.hasAccess) return res.status(403).json({ error: 'Access denied' });
+
+        // Get Form Name
+        const formResult = await pool.query('SELECT name FROM forms WHERE id = $1', [parsedFormId]);
+        const formName = formResult.rows.length > 0 ? formResult.rows[0].name : `Form_${parsedFormId}`;
+
+        const result = await computeFrequencyData(parsedFormId, tabulateField, dateField, months);
+        const { columns, rows, isCapped } = result;
+
+        // Log the export action
+        await pool.query(
+            'INSERT INTO system_logs (action_type, user_id, details) VALUES ($1, $2, $3)',
+            ['export', req.user.id, JSON.stringify({
+                format: format,
+                type: 'frequency_report',
+                form_id: parsedFormId,
+                tabulate_field: tabulateField,
+                date_field: dateField
+            })]
+        );
+
+        if (format === 'excel') {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Frequency Analysis');
+
+            // Add Table Headers directly to Row 1 (Raw data only)
+            const headerRow = worksheet.addRow(columns);
+            headerRow.font = { name: 'Arial', size: 10, bold: true, color: { argb: 'FFFFFFFF' } };
+            headerRow.eachCell(cell => {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF161B22' } // Dark theme header
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            });
+            worksheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'left' };
+
+            rows.forEach(row => {
+                const rowData = columns.map(col => row[col]);
+                const excelRow = worksheet.addRow(rowData);
+                excelRow.font = { name: 'Arial', size: 10 };
+                
+                excelRow.eachCell((cell, colNumber) => {
+                    cell.alignment = {
+                        vertical: 'middle',
+                        horizontal: colNumber === 1 ? 'left' : 'center'
+                    };
+                    cell.border = {
+                        bottom: { style: 'thin', color: { argb: 'FFE1E4E8' } }
+                    };
+                });
+            });
+
+            worksheet.columns.forEach((col, idx) => {
+                col.width = idx === 0 ? 22 : 14;
+            });
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', `attachment; filename="frequency_report_${parsedFormId}.xlsx"`);
+            await workbook.xlsx.write(res);
+
+        } else if (format === 'csv') {
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="frequency_report_${parsedFormId}.csv"`);
+            
+            const escapeCSV = (val) => {
+                if (val === null || val === undefined) return '';
+                let str = String(val);
+                if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+                    str = '"' + str.replace(/"/g, '""') + '"';
+                }
+                return str;
+            };
+
+            let csvContent = columns.map(escapeCSV).join(',') + '\n';
+            rows.forEach(row => {
+                const rowData = columns.map(col => row[col]);
+                csvContent += rowData.map(escapeCSV).join(',') + '\n';
+            });
+
+            res.write(csvContent);
+            res.end();
+
+        } else if (format === 'html') {
+            res.setHeader('Content-Type', 'text/html');
+            const rowsHtml = rows.map(row => {
+                const cells = columns.map((col, idx) => `
+                    <td style="padding: 10px; border-bottom: 1px solid #e1e4e8; text-align: ${idx === 0 ? 'left' : 'center'}; ${idx === 0 ? 'font-weight: bold;' : ''}">
+                        ${row[col]}
+                    </td>
+                `).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+
+            const headersHtml = columns.map(col => `
+                <th style="padding: 12px 10px; background-color: #161b22; color: #ffffff; text-align: center; border: 1px solid #30363d;">
+                    ${col}
+                </th>
+            `).join('');
+
+            const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>${formName} - Frequency Analysis</title>
+                <style>
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                        color: #24292e;
+                        margin: 40px;
+                        background-color: #ffffff;
+                    }
+                    .header {
+                        margin-bottom: 30px;
+                        border-bottom: 2px solid #e1e4e8;
+                        padding-bottom: 20px;
+                    }
+                    h1 {
+                        font-size: 24px;
+                        margin: 0 0 10px 0;
+                        color: #d4af37;
+                    }
+                    .subtitle {
+                        font-size: 14px;
+                        color: #586069;
+                        margin: 0;
+                    }
+                    table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin-top: 20px;
+                    }
+                    @media print {
+                        body {
+                            margin: 20px;
+                        }
+                        button {
+                            display: none;
+                        }
+                    }
+                    .btn {
+                        padding: 10px 20px;
+                        background-color: #d4af37;
+                        color: #010409;
+                        border: none;
+                        font-weight: bold;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        margin-bottom: 20px;
+                    }
+                    .btn:hover {
+                        background-color: #c5a030;
+                    }
+                </style>
+            </head>
+            <body>
+                <div style="display: flex; justify-content: space-between; align-items: center;" class="header">
+                    <div>
+                        <h1>${formName} - Frequency Analysis</h1>
+                        <p class="subtitle">Grouped by: <strong>${dateField}</strong> | Pivot field: <strong>${tabulateField}</strong></p>
+                    </div>
+                    <button class="btn" onclick="window.print()">🖨️ Print Report</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>${headersHtml}</tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+                ${isCapped ? `
+                    <div style="margin-top: 20px; padding: 10px; border: 1px solid #d4af37; background-color: #fffdef; color: #7a6000; font-size: 12px; border-radius: 4px;">
+                        ⚠️ Warning: The number of unique options exceeded the maximum limit of 15. The top 14 options by frequency are displayed as individual columns, and the rest are grouped under "Others".
+                    </div>
+                ` : ''}
+            </body>
+            </html>
+            `;
+            res.send(htmlContent);
+
+        } else if (format === 'pdf') {
+            const columnCount = columns.length;
+            let fontSize = 9;
+            let headerFontSize = 10;
+            let cellPadding = [4, 6, 4, 6];
+            let margins = [30, 30, 30, 30];
+
+            if (columnCount >= 12) {
+                fontSize = 6.5;
+                headerFontSize = 7.5;
+                cellPadding = [2, 3, 2, 3];
+                margins = [15, 20, 15, 20];
+            } else if (columnCount >= 8) {
+                fontSize = 8;
+                headerFontSize = 9;
+                cellPadding = [3, 4, 3, 4];
+                margins = [20, 25, 20, 25];
+            }
+
+            const docDefinition = {
+                pageOrientation: 'landscape',
+                pageSize: 'A4',
+                pageMargins: margins,
+                defaultStyle: { 
+                    font: 'Helvetica', 
+                    fontSize: fontSize, 
+                    lineHeight: 1.1
+                },
+                header: (currentPage, pageCount) => {
+                    return {
+                        text: `${formName} - Frequency Analysis | Page ${currentPage} of ${pageCount}`,
+                        alignment: 'right',
+                        margin: [0, 10, 10, 0],
+                        fontSize: 7,
+                        color: '#999'
+                    };
+                },
+                content: [
+                    { text: `${formName} - Frequency Analysis`, style: 'title' },
+                    { text: `Report generated on ${new Date().toLocaleDateString()} for field "${tabulateField}" grouped by "${dateField}".`, style: 'subtitle' },
+                    { text: ' ', fontSize: 10 }
+                ],
+                styles: {
+                    title: { fontSize: 14, bold: true, margin: [0, 0, 0, 2] },
+                    subtitle: { fontSize: 9, italics: true, color: '#555', margin: [0, 0, 0, 10] },
+                    tableHeader: { 
+                        bold: true, 
+                        fontSize: headerFontSize, 
+                        color: 'white', 
+                        fillColor: '#161b22', 
+                        alignment: 'center' 
+                    },
+                    tableCell: { 
+                        margin: cellPadding
+                    }
+                }
+            };
+
+            const tableBody = [];
+            const pdfHeaders = columns.map(col => ({ text: col, style: 'tableHeader' }));
+            tableBody.push(pdfHeaders);
+
+            rows.forEach(row => {
+                const pdfRow = columns.map((col, idx) => {
+                    const isMonth = idx === 0;
+                    return { 
+                        text: String(row[col]), 
+                        style: 'tableCell', 
+                        alignment: isMonth ? 'left' : 'center',
+                        ...(isMonth ? { bold: true } : {})
+                    };
+                });
+                tableBody.push(pdfRow);
+            });
+
+            const widths = columns.map((col, idx) => idx === 0 ? 'auto' : '*');
+
+            docDefinition.content.push({
+                table: {
+                    headerRows: 1,
+                    widths: widths,
+                    body: tableBody
+                },
+                layout: {
+                    hLineWidth: function (i, node) {
+                        return (i === 0 || i === node.table.body.length) ? 1.5 : 0.5;
+                    },
+                    vLineWidth: function (i, node) {
+                        return 0;
+                    },
+                    hLineColor: function (i, node) {
+                        return (i === 0 || i === node.table.body.length) ? '#30363d' : '#e1e4e8';
+                    },
+                    paddingLeft: function (i, node) { return 6; },
+                    paddingRight: function (i, node) { return 6; },
+                    paddingTop: function (i, node) { return 4; },
+                    paddingBottom: function (i, node) { return 4; }
+                }
+            });
+
+            if (isCapped) {
+                docDefinition.content.push({
+                    text: '⚠️ Warning: The number of unique options exceeded the maximum limit of 15. The top 14 options by frequency are displayed as individual columns, and the rest are grouped under "Others".',
+                    color: '#d4af37',
+                    fontSize: 8,
+                    margin: [0, 10, 0, 0]
+                });
+            }
+
+            const pdfStream = await pdfmake.createPdf(docDefinition).getStream();
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="frequency_report_${parsedFormId}.pdf"`);
+            pdfStream.pipe(res);
+            pdfStream.end();
+        } else {
+            res.status(400).json({ error: 'Unsupported format requested' });
+        }
+    } catch (err) {
+        console.error('Export frequency report error:', err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to export frequency report' });
+        }
+    }
+});
+
 module.exports = router;
+

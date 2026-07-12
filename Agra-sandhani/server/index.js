@@ -109,6 +109,9 @@ app.use((err, req, res, next) => {
 
 const os = require('os');
 const getLocalIP = () => {
+    if (process.env.LAN_IP) {
+        return process.env.LAN_IP;
+    }
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {

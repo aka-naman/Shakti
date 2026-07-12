@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ master.name }} - AeroForm Automatrix{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+  <a href="{{ url_for('internship_menu') }}" style="display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none; color: var(--primary-navy); font-weight: 600; font-size: 0.9rem; margin-bottom: 1rem; transition: var(--transition-fast);">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12"></line>
+      <polyline points="12 19 5 12 12 5"></polyline>
+    </svg>
+    Back to Internship Module
+  </a>
+  <h2>{{ master.name }}</h2>
+  <p style="color: var(--text-muted);">{{ master.description }}</p>
+</div>
+
+<div class="form-container">
+  <div class="card-header-bar" style="background-color: var(--accent-gold); margin-top: -3rem; margin-left: -3rem; margin-right: -3rem; border-radius: var(--radius-lg) var(--radius-lg) 0 0;"></div>
+  
+  <form id="internship-grid-form" action="/generate-internship-noting/{{ master.id }}" method="POST" onsubmit="prepareSubmit()">
+    
+    <!-- Section 1: Note Details -->
+    <div style="margin-bottom: 2.5rem;">
+      <h3 style="margin-bottom: 1.5rem; border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--primary-navy);">
+        1. Note Details / नोट विवरण
+      </h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="REF_NO">Reference Number / संदर्भ संख्या <span class="text-danger">*</span></label>
+          <input type="text" id="REF_NO" name="REF_NO" value="टीबीआरएल/मा.सं.वि.वि./I/2026/" required>
+        </div>
+        <div class="form-group">
+          <label for="DATE">Note Date / दिनांक <span class="text-danger">*</span></label>
+          <input type="date" id="DATE" name="DATE" required>
+        </div>
+        
+        <!-- Render dynamic placeholders depending on the template metadata -->
+        {% for var in master.variables %}
+          {% if var not in ['REF_NO', 'DATE', 'SIGNATORY_NAME', 'SIGNATORY_DESIG'] %}
+            <div class="form-group">
+              <label for="{{ var }}">{{ var|replace('_', ' ') }} <span class="text-danger">*</span></label>
+              {% if 'DATE' in var or 'DEADLINE' in var %}
+                <input type="date" id="{{ var }}" name="{{ var }}" required>
+              {% elif 'RATE' in var or 'AMOUNT' in var %}
+                <input type="number" id="{{ var }}" name="{{ var }}" value="5000" required>
+              {% elif var == 'INTERNSHIP_DURATION' %}
+                <input type="text" id="{{ var }}" name="{{ var }}" value="छ्ह महीने" required>
+              {% elif var == 'SESSION_START_YEAR' %}
+                <input type="text" id="{{ var }}" name="{{ var }}" value="2026" required>
+              {% elif var == 'MONTH_1' %}
+                <input type="text" id="{{ var }}" name="{{ var }}" value="06 फरवरी 2026 से 05 मार्च 2026" required>
+              {% elif var == 'MONTH_2' %}
+                <input type="text" id="{{ var }}" name="{{ var }}" value="06 मार्च 2026 से 05 अप्रैल 2026" required>
+              {% elif var == 'MONTH_3' %}
+                <input type="text" id="{{ var }}" name="{{ var }}" value="06 अप्रैल 2026 से 05 मई 2026" required>
+              {% else %}
+                <input type="text" id="{{ var }}" name="{{ var }}" required>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Section 2: Dynamic Grid Editor -->
+    <div class="nominees-section">
+      <h3 style="margin-bottom: 1.5rem; border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--primary-navy);">
+        2. Dynamic Grid Editor / ग्रिड डेटा
+      </h3>
+      <div class="table-responsive">
+        <table class="nominees-table" id="grid-table">
+          <thead>
+            <tr>
+              {% if master.id == 'master_008' %}
+                <!-- S.No, Name, Branch, Group, Bank Details, Remarks -->
+                <th style="width: 8%">S. No.</th>
+                <th style="width: 25%">Trainee Name / प्रशिक्षु का नाम</th>
+                <th style="width: 20%">Branch / शाखा</th>
+                <th style="width: 12%">Group</th>
+                <th style="width: 20%">Bank Account Details</th>
+                <th style="width: 10%">Remarks</th>
+              {% elif master.id == 'master_009' %}
+                <!-- S.No, Branch, Requirement, Application Received, Remarks -->
+                <th style="width: 12%">S. No. (e.g. 1)</th>
+                <th style="width: 35%">Branch / शाखा</th>
+                <th style="width: 15%">Requirement</th>
+                <th style="width: 18%">Applications Received</th>
+                <th style="width: 15%">Remarks</th>
+              {% elif master.id == 'master_011' %}
+                <!-- S.No, Trainee Name, Branch, College, Duration, Remarks -->
+                <th style="width: 8%">S. No.</th>
+                <th style="width: 25%">Trainee Name / प्रशिक्षु का नाम</th>
+                <th style="width: 20%">Branch / शाखा</th>
+                <th style="width: 22%">College / महाविद्यालय</th>
+                <th style="width: 10%">Duration</th>
+                <th style="width: 10%">Remarks</th>
+              {% endif %}
+              <th style="width: 5%"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- First default row -->
+            <tr>
+              {% if master.id == 'master_008' %}
+                <td style="text-align: center; font-weight: 600;" class="s-no">1</td>
+                <td><input type="text" class="r-name" value="Amit Kumar Sharma" placeholder="Trainee Name" required></td>
+                <td><input type="text" class="r-branch" value="B.Tech (CSE)" placeholder="Branch" required></td>
+                <td>
+                  <select class="r-group" required>
+                    {% for g in groups %}
+                    <option value="{{ g }}" {% if g == 'HRDD' %}selected{% endif %}>{{ g }}</option>
+                    {% endfor %}
+                  </select>
+                </td>
+                <td><input type="text" class="r-bank" value="SBI A/c 43009988102 IFSC SBIN0001090" placeholder="Bank details" required></td>
+                <td><input type="text" class="r-remarks" value="No dues" placeholder="Remarks"></td>
+              {% elif master.id == 'master_009' %}
+                <td><input type="text" class="r-sno" value="1" style="text-align: center;" required></td>
+                <td><input type="text" class="r-branch" value="Computer Science Engg." placeholder="Branch Name" required></td>
+                <td><input type="text" class="r-req" value="07" style="text-align: center;" required></td>
+                <td><input type="text" class="r-app" value="28" style="text-align: center;" required></td>
+                <td><input type="text" class="r-remarks" value="7 Selected" placeholder="Remarks"></td>
+              {% elif master.id == 'master_011' %}
+                <td style="text-align: center; font-weight: 600;" class="s-no">1</td>
+                <td><input type="text" class="r-name" value="Amit Kumar Sharma" placeholder="Trainee Name" required></td>
+                <td><input type="text" class="r-branch" value="B.Tech (CSE)" placeholder="Branch" required></td>
+                <td><input type="text" class="r-college" value="Punjab Engineering College, Chandigarh" placeholder="College Name" required></td>
+                <td><input type="text" class="r-duration" value="6 Months" placeholder="Duration" required></td>
+                <td><input type="text" class="r-remarks" value="Joining" placeholder="Remarks"></td>
+              {% endif %}
+              <td>
+                <button type="button" class="btn-remove" onclick="removeRow(this)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-actions">
+        <button type="button" class="btn btn-secondary" onclick="addRow()" style="padding: 0.5rem 1rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.4rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          Add Row / पंक्ति जोड़ें
+        </button>
+        <span class="table-hint">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          The tables in the output Word noting sheet will be formatted and populated.
+        </span>
+      </div>
+    </div>
+
+    <!-- Section 3: Signatories -->
+    <div style="margin-top: 2rem; margin-bottom: 2rem;">
+      <h3 style="margin-bottom: 1.5rem; border-bottom: 2px solid var(--secondary-border); padding-bottom: 0.5rem; font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--primary-navy);">
+        3. Signatories / हस्ताक्षरकर्ता
+      </h3>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="SIGNATORY_NAME">Signatory Name / नाम <span class="text-danger">*</span></label>
+          <input type="text" id="SIGNATORY_NAME" name="SIGNATORY_NAME" value="{{ defaults.sig1_name or 'राकेश कुमार' }}" required>
+        </div>
+        <div class="form-group">
+          <label for="SIGNATORY_DESIG">Signatory Designation / पद <span class="text-danger">*</span></label>
+          <input type="text" id="SIGNATORY_DESIG" name="SIGNATORY_DESIG" value="{{ defaults.sig1_desig or 'वैज्ञानिक ‘एफ’ (मा.सं.वि.वि)' }}" required>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden input for rows JSON -->
+    <input type="hidden" name="rows_json" id="rows_json">
+
+    <!-- Actions -->
+    <div style="margin-top: 3rem; display: flex; gap: 1.5rem; justify-content: flex-end;">
+      <a href="{{ url_for('internship_menu') }}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.75rem;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 10 12 15 7 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Generate Noting / नोटशीट बनाएं
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const groupsList = {{ groups|tojson }};
+  const masterId = "{{ master.id }}";
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // Automatically set default date to today
+    const dateInput = document.getElementById('DATE');
+    const today = new Date().toISOString().split('T')[0];
+    if (dateInput && !dateInput.value) {
+      dateInput.value = today;
+    }
+  });
+
+  function addRow() {
+    const tableBody = document.querySelector('#grid-table tbody');
+    const rowCount = tableBody.rows.length + 1;
+    const tr = document.createElement('tr');
+    
+    if (masterId === 'master_008') {
+      let selectOptions = '';
+      groupsList.forEach(g => {
+        selectOptions += `<option value="${g}" ${g === 'HRDD' ? 'selected' : ''}>${g}</option>`;
+      });
+      tr.innerHTML = `
+        <td style="text-align: center; font-weight: 600;" class="s-no">${rowCount}</td>
+        <td><input type="text" class="r-name" placeholder="Trainee Name" required></td>
+        <td><input type="text" class="r-branch" placeholder="Branch" required></td>
+        <td>
+          <select class="r-group" required>
+            ${selectOptions}
+          </select>
+        </td>
+        <td><input type="text" class="r-bank" placeholder="Bank details" required></td>
+        <td><input type="text" class="r-remarks" placeholder="Remarks"></td>
+        <td>
+          <button type="button" class="btn-remove" onclick="removeRow(this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </td>
+      `;
+    } else if (masterId === 'master_009') {
+      tr.innerHTML = `
+        <td><input type="text" class="r-sno" value="${rowCount}" style="text-align: center;" required></td>
+        <td><input type="text" class="r-branch" placeholder="Branch Name" required></td>
+        <td><input type="text" class="r-req" placeholder="Requirement" style="text-align: center;" required></td>
+        <td><input type="text" class="r-app" placeholder="Applications" style="text-align: center;" required></td>
+        <td><input type="text" class="r-remarks" placeholder="Remarks"></td>
+        <td>
+          <button type="button" class="btn-remove" onclick="removeRow(this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </td>
+      `;
+    } else if (masterId === 'master_011') {
+      tr.innerHTML = `
+        <td style="text-align: center; font-weight: 600;" class="s-no">${rowCount}</td>
+        <td><input type="text" class="r-name" placeholder="Trainee Name" required></td>
+        <td><input type="text" class="r-branch" placeholder="Branch" required></td>
+        <td><input type="text" class="r-college" placeholder="College Name" required></td>
+        <td><input type="text" class="r-duration" placeholder="Duration" required></td>
+        <td><input type="text" class="r-remarks" placeholder="Remarks"></td>
+        <td>
+          <button type="button" class="btn-remove" onclick="removeRow(this)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </td>
+      `;
+    }
+    
+    tableBody.appendChild(tr);
+    updateSerialNumbers();
+  }
+
+  function removeRow(btn) {
+    const tableBody = document.querySelector('#grid-table tbody');
+    if (tableBody.rows.length > 1) {
+      const tr = btn.closest('tr');
+      tr.remove();
+      updateSerialNumbers();
+    } else {
+      alert("At least one row must be specified.");
+    }
+  }
+
+  function updateSerialNumbers() {
+    if (masterId === 'master_009') return; // uses manual / text s-no
+    const rows = document.querySelectorAll('#grid-table tbody tr');
+    rows.forEach((row, idx) => {
+      row.querySelector('.s-no').textContent = idx + 1;
+    });
+  }
+
+  function prepareSubmit() {
+    const rowsData = [];
+    const trs = document.querySelectorAll('#grid-table tbody tr');
+    
+    trs.forEach(tr => {
+      const row = {};
+      if (masterId === 'master_008') {
+        row.name = tr.querySelector('.r-name').value;
+        row.branch = tr.querySelector('.r-branch').value;
+        row.group = tr.querySelector('.r-group').value;
+        row.bank_details = tr.querySelector('.r-bank').value;
+        row.remarks = tr.querySelector('.r-remarks').value;
+      } else if (masterId === 'master_009') {
+        row.sno = tr.querySelector('.r-sno').value;
+        row.branch = tr.querySelector('.r-branch').value;
+        row.requirement = tr.querySelector('.r-req').value;
+        row.applications_received = tr.querySelector('.r-app').value;
+        row.remarks = tr.querySelector('.r-remarks').value;
+      } else if (masterId === 'master_011') {
+        row.name = tr.querySelector('.r-name').value;
+        row.branch = tr.querySelector('.r-branch').value;
+        row.college = tr.querySelector('.r-college').value;
+        row.duration = tr.querySelector('.r-duration').value;
+        row.remarks = tr.querySelector('.r-remarks').value;
+      }
+      rowsData.push(row);
+    });
+    
+    document.getElementById('rows_json').value = JSON.stringify(rowsData);
+  }
+</script>
+{% endblock %}

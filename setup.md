@@ -11,8 +11,8 @@ You must copy the entire project directory (`setups_test`) to the air-gapped ser
 1. **`Agra-sandhani/`**:
    * Includes the compiled production frontend in `client/dist/` (already built).
    * Includes `server/node_modules/` (Node.js dependencies).
-2. **`smart-office-noting/`**:
-   * Includes the python virtual environment `venv/` (contains Flask, docx, waitress, etc., pre-installed for offline support).
+2. **`Noting_builder/`**:
+   * Includes the python virtual environment `venv/` (contains Flask, docx, requests, etc., pre-installed for offline support).
    * Includes the offline Bootstrap stylesheet `static/css/bootstrap.min.css`.
 3. **`Portal/`**:
    * Includes `node_modules/` (Unified portal dependencies).
@@ -51,7 +51,7 @@ pg_restore -U postgres -d form2builder -v "D:\form2builder_backup.dump"
 
 To prevent errors on the air-gapped PC, the following fixes have been applied:
 1. **No External Fonts (Vite CSS)**: Google Fonts CDN links were commented out in [index.html](file:///D:/transfer/setups_test/Agra-sandhani/client/index.html) to prevent browser load blocks. It defaults to the system's local Segoe UI/Roboto fonts.
-2. **Local Bootstrap (Noting Templates)**: Bootstrap CSS has been downloaded locally to [bootstrap.min.css](file:///D:/transfer/setups_test/smart-office-noting/static/css/bootstrap.min.css). All noting forms now pull from this local copy instead of JSDelivr.
+2. **Local Bootstrap (Noting Templates)**: Bootstrap CSS has been downloaded locally to [bootstrap.min.css](file:///D:/transfer/setups_test/Noting_builder/static/css/bootstrap.min.css). All noting forms now pull from this local copy instead of JSDelivr.
 3. **Bypassing DNS Latency**: In [Agra-sandhani/.env](file:///D:/transfer/setups_test/Agra-sandhani/.env), `DB_HOST` is set to `127.0.0.1` (instead of `localhost`). This prevents a 5-second connection delay caused by offline DNS lookups.
 4. **Resilient Field Mapping Links**: The integration bridge uses loopback (`127.0.0.1`) internally and `window.location.hostname` externally. This makes the system immune to LAN IP changes.
 
